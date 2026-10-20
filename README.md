@@ -1,94 +1,61 @@
-# ग्रंथ प्रबंधन — Full Platform (Server + Admin App + Viewer App)
+# ग्रंथ प्रबंधन — Flutter
 
-Three independent pieces that work together:
+A native Flutter/Dart port of **ग्रंथ प्रबंधन** (Play Store 1.0.1, package `com.wnm.granthprabandhan`)
+by [ashok8090](https://github.com/ashok8090/Granth-Play-Store). The original was an Expo / React Native
+shell around a React WebView (`index.html`). This port draws every screen natively in Flutter. It keeps the
+same layout, colours, fonts (Noto Sans Devanagari, Yatra One, Tiro Devanagari Sanskrit), icons and Hindi text.
+The only intended change is smoother animations.
 
-```
-server/       Node.js + Express backend — the single source of truth
-admin_app/    Flutter app for authoring content (talks to the server)
-viewer_app/   Flutter app for end users (downloads a resource pack, then offline)
-```
+## Features (ported from the web bundle)
 
-## How data flows
+| Area | What works |
+| --- | --- |
+| Catalog | `getTopics` / `getGranths` / `getPramans` from `granth.wnmsolutions.com`. Cached on the device (`catalog.json`) so the app opens offline. Syncs again every 3 min, when the app resumes (3 s debounce) and when the connection comes back. The सिंक button syncs on demand. |
+| Offline pages | Every granth cover and praman page is downloaded in the background by 6 workers, covers first. Progress shows in the sync strip (`पेज सेव हो रहे हैं d/t`). Granths that are fully saved get an `ऑफलाइन` pill. |
+| Dashboard | Counts, note card, mail link to `sadgranthpraman@gmail.com` (tries Gmail first, then `mailto:`). |
+| Topics | 1×1 / 2×2 grid, fuzzy Hindi/Hinglish search (a port of the original search pipeline), share link, topic PDF, **Multiple topic PDF** that merges several topics into one book. |
+| Granths | 1×1 / 2×2 / 3×3 grid, cover viewer, image save, Share, Original PDF link, हाईलाइट PDF. |
+| प्रमाण | Filter by topic / granth / id. Ordered by chapter, verse and page, the same way the original orders them, including the Kabir Sagar book order. Thumbnails, मुख्य badge, YouTube player, topic and granth pills, Share, PDF. |
+| Gallery | PDF / चित्र tabs, folders (create, rename, delete), move items to a folder, open, save to the phone, share, delete with confirmation. |
+| PDF engine | A port of the original `buildBookPdf`. It has both styles: “PDF विषय के साथ” and “केवल चित्र”. It draws the decorated topic cover page, shapes Devanagari text with Flutter’s text engine, adds page numbers and a gallery preview. Jobs run in a queue with progress, ETA, cancel (रोकें) and one automatic retry. Finished PDFs are copied to **Downloads** and also saved in the app gallery. |
+| Android | Deep links `granth://open?...` and `https://granth.grok.me/open?...`. Back button: closes the open overlay, then walks the history, then a double back on the Dashboard asks before exiting. The last screen is restored when the app starts again. Pictures are saved to *Pictures/ग्रंथ प्रबंधन*. |
+| Settings | PDF style, global layout, hidden **कार्ड स्टाइल** setting (tap *Version* 5 times) with all 8 looks: Bento + Clay, सादा, Glass, Neu, Clay, Material, Flat, Bento. |
 
-1. Admin logs into **admin_app** and adds/edits Topics, Granths, Pramans, Feedback —
-   each save is an API call straight to **server**, images included.
-2. Every single change automatically rebuilds `granth_pack_vN.zip` on the server
-   (manifest.json + all images) and bumps the version number. Nothing to
-   manually "publish" — it's always live.
-3. **viewer_app** periodically checks `GET /api/pack/version`. If the version
-   is newer than what's installed, it downloads and extracts the new zip.
-   Between checks, it works fully offline from the last-downloaded pack.
-4. Feedback submitted inside **viewer_app** posts straight back to the server
-   (`POST /api/feedback`, no login required) and shows up for the admin
-   immediately in **admin_app**'s Feedback tab.
+## Animations added
 
-## 1. Deploy the server
+- **Opening:** the beads of the mala string themselves around the logo, a saffron glow appears, then the title rises. The splash then zooms out while the app scales into place.
+- **Moving between screens:** the next panel fades in and slides sideways. It comes from the right when you go deeper and from the left when you go back. Cards then appear one after another, each fading and sliding in.
+- **Opening a granth:** the card swings open like a book cover (a 3-D tilt with a slight lift) before its प्रमाण list appears.
+- **Images:** a Hero animation carries the tapped cover or page into the full-screen pinch-zoom viewer. Images fade in once loaded, and a shimmer shows while they load.
+- **Small touches:**
+  - buttons and cards shrink slightly when pressed;
+  - the 1×1 / 2×2 / 3×3 switch slides between options;
+  - the hamburger icon turns into ✕, and the menu slides open;
+  - counts on the stats and dashboard count up;
+  - the sync icon spins while syncing;
+  - the PDF progress bar fills smoothly;
+  - the PDF button in the header pops in, and its arrow turns when the progress panel opens;
+  - toasts slide up;
+  - dialogs rise into place (the original's own rise curve, `cubic(.22,1,.36,1)`);
+  - the Top button slides in.
 
-You don't need a computer for this — Render's free tier builds straight from
-GitHub in the browser:
-
-1. Push the `server/` folder to a GitHub repo (same Termux flow you already
-   used for the previous project — `git init`, `add`, `commit`, `push`).
-2. Go to https://render.com → sign up with GitHub → **New +** → **Web Service**
-3. Select your repo, set:
-   - **Root Directory:** `server`
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Instance type:** Free
-4. Add an environment variable `JWT_SECRET` set to any long random string.
-5. Deploy. Render gives you a URL like `https://granth-server.onrender.com`.
-
-⚠️ **Free tier note:** Render's free web services spin down after inactivity
-and take ~30–60s to wake back up on the next request — expect a delay on the
-first request after idle time. Fine for testing; upgrade the plan later if
-you need always-on.
-
-⚠️ **Storage note:** Free tiers usually don't persist disk between deploys.
-Uploaded images and `data/db.json` living in the project folder will be wiped
-on redeploy/restart. For a genuinely permanent setup, add a persistent disk
-(Render's paid "Disks" add-on) mounted at `server/data` and `server/uploads`,
-or swap in cloud storage (S3/Cloudinary) later — the code is structured so
-that's a small change in `upload.js` and `db.js`, not a rewrite.
-
-## 2. Run the Admin app
+## Build
 
 ```bash
-cd admin_app
 flutter pub get
-flutter run          # or: flutter build apk
+flutter analyze
+flutter test
+flutter build apk --release   # build/app/outputs/flutter-apk/app-release.apk
 ```
-On first launch: Settings (gear icon on login screen) → paste your server URL
-→ Save. Then log in with `amit8080` / `amit8080` and change it via
-**Manage Admins** once you're in (add your own account, then optionally
-remove the default one — but keep at least one admin at all times).
 
-## 3. Run the Viewer app
+Requirements: Flutter 3.35+ (Dart ^3.9) and JDK 17. The release build is signed with the local Flutter
+debug key. No signing keys are kept in this repository. Add your own `key.properties` to sign for the Play Store.
 
-```bash
-cd viewer_app
-flutter pub get
-flutter run          # or: flutter build apk
-```
-On first launch it needs your server URL too (gear icon, top right of the
-loading screen) before it can do its first sync. After that, it's offline
-until you tap the sync icon.
+GitHub Actions (`.github/workflows/android-apk.yml`) builds the APK on every push and uploads it as the
+`granth-flutter-apk` artifact.
 
-## Appearance
+## Known gaps
 
-Both apps ship with three modes, switchable at runtime (Admin: drawer →
-Appearance. Viewer: palette icon in the app bar):
-- **Light** — the original saffron/maroon/gold look
-- **Dark** — same palette, dark surfaces
-- **Liquid Glass** — frosted, translucent cards over a gradient backdrop
-
-## Before you ship to real users
-
-- Change `JWT_SECRET` to something random and keep it secret.
-- Log in as `amit8080` and either change its password or create your own
-  admin and delete the default one.
-- Move off the free Render tier (or add a persistent disk) once you have
-  real content you don't want to lose.
-- Give each app its own Android `applicationId` / iOS bundle ID so both can
-  be installed on the same device without conflicting.
-- Add app icons (`flutter_launcher_icons` package) — currently both use the
-  default Flutter icon.
+- The admin/editor screens of the web bundle (`granth-admin` IndexedDB drafts) are not ported. They were empty in the APK build.
+- The YouTube player is an embedded WebView iframe. Some videos may refuse to play when embedded.
+- Storage permission is asked only when it is needed, and only on Android 9 and older.

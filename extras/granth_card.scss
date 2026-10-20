@@ -1,0 +1,11 @@
+// Standalone sample; not part of the app build.
+$maroon: #7b1f2e;
+$paper: #fffdf7;
+
+.granth-card {
+  background: $paper;
+  border-radius: 12px;
+  .title { color: $maroon; }
+}
+// Granth list sample — prints titles in order.
+// Granth list sample — prints titles in order.
