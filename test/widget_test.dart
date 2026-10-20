@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:granthprabandhan/main.dart';
-import 'package:granthprabandhan/screens/splash_screen.dart';
-import 'package:granthprabandhan/services/storage.dart';
-import 'package:granthprabandhan/state/router.dart';
-import 'package:granthprabandhan/widgets/common.dart';
+import 'package:granthsprabandhan/main.dart';
+import 'package:granthsprabandhan/screens/splash_screen.dart';
+import 'package:granthsprabandhan/services/storage.dart';
+import 'package:granthsprabandhan/state/router.dart';
+import 'package:granthsprabandhan/widgets/common.dart';
 
 import 'helpers.dart';
 

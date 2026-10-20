@@ -1,10 +1,12 @@
 # ग्रंथ प्रबंधन — Flutter
 
-A native Flutter/Dart port of **ग्रंथ प्रबंधन** (Play Store 1.0.1, package `com.wnm.granthprabandhan`)
+A native Flutter/Dart port of **ग्रंथ प्रबंधन** (Play Store 1.0.1, originally `com.wnm.granthprabandhan`)
 by [ashok8090](https://github.com/ashok8090/Granth-Play-Store). The original was an Expo / React Native
 shell around a React WebView (`index.html`). This port draws every screen natively in Flutter. It keeps the
 same layout, colours, fonts (Noto Sans Devanagari, Yatra One, Tiro Devanagari Sanskrit), icons and Hindi text.
 The only intended change is smoother animations.
+
+This repository builds with the Android package / application id **`com.wnm.granthsprabandhan`**. It installs side by side with the Play Store app and does not update it. Deep links are unchanged: `granth://open?...` and `https://granth.grok.me/open?...`.
 
 ## Features (ported from the web bundle)
 
@@ -45,14 +47,16 @@ The only intended change is smoother animations.
 flutter pub get
 flutter analyze
 flutter test
-flutter build apk --release   # build/app/outputs/flutter-apk/app-release.apk
+flutter build apk --release   # universal: build/app/outputs/flutter-apk/app-release.apk
+flutter build apk --release --split-per-abi --target-platform android-arm64
+                              # arm64 only: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 ```
 
 Requirements: Flutter 3.35+ (Dart ^3.9) and JDK 17. The release build is signed with the local Flutter
 debug key. No signing keys are kept in this repository. Add your own `key.properties` to sign for the Play Store.
 
 GitHub Actions (`.github/workflows/android-apk.yml`) builds the APK on every push and uploads it as the
-`granth-flutter-apk` artifact.
+`granth-flutter-apk` (universal) and `granth-flutter-apk-arm64` artifacts.
 
 ## Known gaps
 

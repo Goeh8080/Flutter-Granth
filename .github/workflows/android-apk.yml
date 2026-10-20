@@ -28,3 +28,9 @@ jobs:
           name: granth-flutter-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+      - run: flutter build apk --release --split-per-abi --target-platform android-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: granth-flutter-apk-arm64
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          if-no-files-found: error

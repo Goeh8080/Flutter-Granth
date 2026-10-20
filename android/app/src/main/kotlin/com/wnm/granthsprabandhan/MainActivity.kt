@@ -1,4 +1,4 @@
-package com.wnm.granthprabandhan
+package com.wnm.granthsprabandhan
 
 import android.Manifest
 import android.content.ContentValues
@@ -20,7 +20,7 @@ import java.io.FileInputStream
  * and closes the app after the in-app exit confirmation.
  */
 class MainActivity : FlutterActivity() {
-    private val channelName = "com.wnm.granthprabandhan/downloads"
+    private val channelName = "com.wnm.granthsprabandhan/downloads"
     private val album = "ग्रंथ प्रबंधन"
     private var pending: Pair<MethodCall, MethodChannel.Result>? = null
 
