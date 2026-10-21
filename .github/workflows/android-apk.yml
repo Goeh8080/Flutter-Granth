@@ -23,6 +23,9 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build apk --release
+      - name: Kotlin unit tests (PDF notification service)
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest --console=plain
       - uses: actions/upload-artifact@v4
         with:
           name: granth-flutter-apk

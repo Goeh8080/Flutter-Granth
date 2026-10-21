@@ -6,6 +6,8 @@ shell around a React WebView (`index.html`). This port draws every screen native
 same layout, colours, fonts (Noto Sans Devanagari, Yatra One, Tiro Devanagari Sanskrit), icons and Hindi text.
 The only intended change is smoother animations.
 
+This build is versioned **1.0.0 (versionCode 1)** for external testing; split APKs report the same versionCode.
+
 This repository builds with the Android package / application id **`com.wnm.granthprabandhan`** — the same id as the Play Store app. It is signed with a different key, so Android will not install it over the Play Store build (uninstall one first). Deep links are unchanged: `granth://open?...` and `https://granth.grok.me/open?...`.
 
 See [docs/PARITY.md](docs/PARITY.md) for the full feature-parity checklist against the original app, and the original bugs that were not copied.
