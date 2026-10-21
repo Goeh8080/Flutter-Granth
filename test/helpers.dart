@@ -1,9 +1,9 @@
 import 'dart:io';
 
-import 'package:granthsprabandhan/models/models.dart';
-import 'package:granthsprabandhan/services/catalog_store.dart';
-import 'package:granthsprabandhan/services/storage.dart';
-import 'package:granthsprabandhan/state/router.dart';
+import 'package:granthprabandhan/models/models.dart';
+import 'package:granthprabandhan/services/catalog_store.dart';
+import 'package:granthprabandhan/services/storage.dart';
+import 'package:granthprabandhan/state/router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Catalog sampleCatalog() => Catalog(

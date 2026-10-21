@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:granthsprabandhan/services/pdf_builder.dart';
+import 'package:granthprabandhan/services/pdf_builder.dart';
 import 'package:image/image.dart' as img;
 
 void main() {

@@ -5,11 +5,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:granthsprabandhan/main.dart';
-import 'package:granthsprabandhan/screens/home_shell.dart';
-import 'package:granthsprabandhan/screens/splash_screen.dart';
-import 'package:granthsprabandhan/services/api.dart';
-import 'package:granthsprabandhan/services/catalog_store.dart';
+import 'package:granthprabandhan/main.dart';
+import 'package:granthprabandhan/screens/home_shell.dart';
+import 'package:granthprabandhan/screens/splash_screen.dart';
+import 'package:granthprabandhan/services/api.dart';
+import 'package:granthprabandhan/services/catalog_store.dart';
 
 import 'helpers.dart';
 
