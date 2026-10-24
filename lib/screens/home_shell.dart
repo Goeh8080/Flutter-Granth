@@ -155,7 +155,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
 
   bool _readyOpen = false;
 
-  /// "सारे ग्रंथ ऑफलाइन हो गए हैं" — once per completed library download.
+  /// "सारे ग्रंथ ऑफलाइन हो गए हैं" — ONCE, ever (round 8).
   void _onOfflineReady() {
     final r = CatalogStore.I.offlineReady.value;
     if (r == null || _readyOpen || !mounted) return;

@@ -532,6 +532,10 @@ class _SettingsState extends State<_Settings> {
             for (final (id, title) in const [('small', 'छोटा'), ('normal', 'सामान्य'), ('large', 'बड़ा')])
               Pill(key: ValueKey('set-text-$id'), direct: true, label: title, tone: UiPrefs.I.textSize == id ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.textSize = id),
           ]),
+          _block('एनिमेशन', [
+            Pill(key: const ValueKey('set-anim-on'), direct: true, label: 'चालू', tone: UiPrefs.I.animations ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.animations = true),
+            Pill(key: const ValueKey('set-anim-low'), direct: true, label: 'कम', tone: UiPrefs.I.animations ? PillTone.plain : PillTone.maroon, onTap: () => UiPrefs.I.animations = false),
+          ]),
           _toggle('auto-sync', 'अपने-आप सिंक (हर 2 मिनट)', UiPrefs.I.autoSync, (v) => UiPrefs.I.autoSync = v),
           _toggle('wifi-only', 'पेज डाउनलोड सिर्फ़ WiFi पर', UiPrefs.I.wifiOnly, (v) => UiPrefs.I.wifiOnly = v),
           _toggle('keep-awake', 'पढ़ते समय स्क्रीन चालू रखें', UiPrefs.I.keepAwake, (v) => UiPrefs.I.keepAwake = v),
