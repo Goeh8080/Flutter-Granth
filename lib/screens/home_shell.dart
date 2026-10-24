@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 
-import '../highlighter/highlighter_screen.dart';
+import '../highlighter/highlighter_launcher.dart';
 import '../services/catalog_store.dart';
 import '../services/file_actions.dart';
 import '../services/native_bridge.dart';
@@ -652,7 +652,7 @@ class _NavMenu extends StatelessWidget {
           return;
         }
         if (AppNav.I.menuOpen) AppNav.I.toggleMenu();
-        HighlighterScreen.open(context);
+        HighlighterLauncher.open(context);
       },
       scale: 0.98,
       child: Stack(
