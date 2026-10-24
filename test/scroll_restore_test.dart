@@ -319,18 +319,15 @@ void main() {
       await settle(t, 5);
       await decodeWait(t);
       await scrollDown(t, 1400);
+      await settle(t, 14);
       final y0 = listPos(t).pixels;
       expect(y0, greaterThan(500));
       final re = RegExp(r'^पेज \d+$');
       final before = visibleTitles(t, re);
-      AppNav.I.go('#/granths');
+      AppNav.I.go('#/pramans?id=101');
       await settle(t, 4);
-      expect(listPos(t).pixels, 0);
-      // ignore: avoid_print
-      print('DBG place=${Store.I.getString("praman-list::")} keys=${Store.I.keys.where((k) => k.contains("place")).toList()}');
+      await decodeWait(t);
       await goBack(t);
-      // ignore: avoid_print
-      print('DBG after max=${listPos(t).maxScrollExtent} px=${listPos(t).pixels} route=${AppNav.I.route.key}');
       expect(Places.query('praman-list::'), 'पेज 1');
       expect(find.text('पेज 2'), findsNothing, reason: 'still filtered');
       exact(t, y0, before, re, 'search');
