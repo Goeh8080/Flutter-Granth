@@ -208,14 +208,17 @@ class CatalogStore extends ChangeNotifier {
         Store.I.setString(Store.kOfflineIds, '[]');
       } catch (_) {}
     }
-    try {
-      final res = await Connectivity().checkConnectivity().timeout(const Duration(seconds: 3));
-      online = !res.contains(ConnectivityResult.none);
-      _net = res;
-    } catch (_) {
-      online = true;
-    }
-    notifyListeners();
+    // The saved lists are read while the connection check runs (it can take a second or
+    // more on a phone): the first screen no longer waits for it.
+    final netCheck = () async {
+      try {
+        final res = await Connectivity().checkConnectivity().timeout(const Duration(seconds: 3));
+        online = !res.contains(ConnectivityResult.none);
+        _net = res;
+      } catch (_) {
+        online = true;
+      }
+    }();
     try {
       // Decoded off the UI thread; a damaged / old-format file is ignored and a fresh sync
       // replaces it.
@@ -240,6 +243,9 @@ class CatalogStore extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+    await netCheck;
+    if (_catalog != null) status = online ? SyncStatus.ready : SyncStatus.offline;
+    notifyListeners();
     _listen();
     _watchSaves();
     if (online) {
@@ -700,6 +706,9 @@ class CatalogStore extends ChangeNotifier {
               return;
             }
           }
+          // A PDF being built / a page on screen goes first (they need the same connection).
+          await ImageStore.I.backgroundTurn();
+          if (run != _saveRun) return;
           if (await _fetchWithRetry(list[i], run)) {
             _failedAt.remove(list[i]);
             pageSaved(list[i], true);
