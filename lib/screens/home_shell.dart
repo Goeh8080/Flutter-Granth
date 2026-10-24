@@ -16,6 +16,7 @@ import '../state/router.dart';
 import '../state/toast.dart';
 import '../state/ui_prefs.dart';
 import '../theme/colors.dart';
+import '../widgets/bounded_scroll.dart';
 import '../widgets/common.dart';
 import '../widgets/pdf_sheets.dart';
 import 'dashboard_screen.dart';
@@ -264,7 +265,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                   final total = s.topics.length + s.granths.length + s.pramans.length;
                   return CustomScrollView(
                     controller: _scroll,
-                    physics: const ClampingScrollPhysics(),
+                    physics: const BoundedScrollPhysics(),
                     slivers: [
                       SliverToBoxAdapter(
                         child: _Mast(deckOpen: _deckOpen, onDeck: () => _openDeck(0), link: _deckLink),
