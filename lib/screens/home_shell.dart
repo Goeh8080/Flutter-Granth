@@ -53,11 +53,9 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     PdfQueue.I.finished.addListener(_onFinished);
     PdfNotify.I.attach();
     PdfNotify.I.hint.addListener(_onNotifHint);
-    CatalogStore.I.offlineReady.addListener(_onOfflineReady);
     _scroll.addListener(() => _showTop.value = _scroll.hasClients && _scroll.offset > 480);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restorePlace();
-      _onOfflineReady();
     });
   }
 
@@ -67,7 +65,6 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     PdfQueue.I.removeListener(_onQueue);
     PdfQueue.I.finished.removeListener(_onFinished);
     PdfNotify.I.hint.removeListener(_onNotifHint);
-    CatalogStore.I.offlineReady.removeListener(_onOfflineReady);
     _deckSel.dispose();
     _scroll.dispose();
     _panelIn.dispose();
@@ -153,23 +150,6 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
 
   void _closeDeck() {
     if (_deckOpen) setState(() => _deckOpen = false);
-  }
-
-  bool _readyOpen = false;
-
-  /// "सारे ग्रंथ ऑफलाइन हो गए हैं" — ONCE, ever (round 8).
-  void _onOfflineReady() {
-    final r = CatalogStore.I.offlineReady.value;
-    if (r == null || _readyOpen || !mounted) return;
-    _readyOpen = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        _readyOpen = false;
-        return;
-      }
-      CatalogStore.I.ackOfflineReady();
-      openOfflineReady(context, r).whenComplete(() => _readyOpen = false);
-    });
   }
 
   void _onNotifHint() {
