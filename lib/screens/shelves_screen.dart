@@ -137,6 +137,8 @@ class _ReligionFolders extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final all = CatalogStore.I.granths;
+    // Nothing synced yet: say so once, instead of six empty folders.
+    if (all.isEmpty) return const SliverToBoxAdapter(child: EmptyState(title: 'कोई ग्रंथ नहीं', body: 'सिंक के बाद पवित्र ग्रंथ यहाँ खुलेंगे।'));
     final index = Shelves.indexFor(all);
     final rows = <Widget>[];
     final ids = <String>[];
@@ -172,7 +174,6 @@ class _ReligionFolders extends StatelessWidget {
     }
     return SliverMainAxisGroup(slivers: [
       folderSliver(rows: rows, ids: ids, dx: dx, ledger: ledger),
-      if (all.isEmpty) const SliverToBoxAdapter(child: EmptyState(title: 'कोई ग्रंथ नहीं', body: 'सिंक के बाद पवित्र ग्रंथ यहाँ खुलेंगे।')),
     ]);
   }
 }
