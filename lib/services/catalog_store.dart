@@ -231,6 +231,8 @@ class CatalogStore extends ChangeNotifier {
         debugPrint('catalog.json unreadable, will sync fresh: $e');
       }
       if (cached != null && cached.topics.isEmpty && cached.granths.isEmpty) cached = null;
+      // A saved file this version can't read is set aside, not lost (the fresh sync replaces it).
+      if (cached == null && text != null && text.trim().isNotEmpty) unawaited(Store.I.keepCopy('catalog.json', 'unreadable'));
       if (cached != null) {
         _catalog = cached;
         _lastJson = cached.contentKey;
@@ -244,7 +246,7 @@ class CatalogStore extends ChangeNotifier {
       }
     } catch (_) {}
     await netCheck;
-    if (_catalog != null) status = online ? SyncStatus.ready : SyncStatus.offline;
+    if (hasData && status != SyncStatus.syncing) status = online ? SyncStatus.ready : SyncStatus.offline;
     notifyListeners();
     _listen();
     _watchSaves();
