@@ -99,6 +99,9 @@ class CatalogStore extends ChangeNotifier {
   Catalog _catalog = Catalog.empty();
   SyncStatus status = SyncStatus.booting;
   bool online = true;
+
+  /// Round 7: called when the connection comes back (PDFs waiting for pages retry at once).
+  static void Function()? onReconnect;
   String? error;
   ImageProgress _images = const ImageProgress(0, 0, false);
 
@@ -280,6 +283,7 @@ class CatalogStore extends ChangeNotifier {
         if (now && !online) {
           online = true;
           notifyListeners();
+          onReconnect?.call();
           sync().then((_) => savePages());
         } else if (!now && online) {
           online = false;
