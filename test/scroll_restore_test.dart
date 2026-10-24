@@ -310,6 +310,32 @@ void main() {
       AppZoom.current.value = ZoomView.identity;
     });
 
+    testWidgets('right away, before a single picture has decoded, the place is already reached', (t) async {
+      UiPrefs.I.setCols(Store.kGranthCols, 2);
+      await openApp(t);
+      AppNav.I.go('#/granths');
+      await settle(t);
+      await decodeWait(t);
+      await scrollDown(t, 9000);
+      await settle(t, 14);
+      final y0 = listPos(t).pixels;
+      expect(y0, greaterThan(4000));
+      AppNav.I.go('#/pramans?id=101');
+      await settle(t, 4);
+      await decodeWait(t);
+      // The very end of the list: the saved place only exists when every row is full height.
+      // Back with nothing decoded (a phone that is still busy reading the files):
+      // no real-time pause, so no picture finishes decoding between these frames.
+      PaintingBinding.instance.imageCache.clear();
+      await t.binding.handlePopRoute();
+      for (var i = 0; i < 6; i++) {
+        await t.pump(const Duration(milliseconds: 16));
+      }
+      expect(AppNav.I.route.panel, Panel.granths);
+      expect(listPos(t).pixels, closeTo(y0, 0.6), reason: 'at the saved place on the first frames');
+      expect(listPos(t).maxScrollExtent, greaterThanOrEqualTo(y0), reason: 'the list is as tall as it was');
+    });
+
     testWidgets('search text comes back with the position it belongs to', (t) async {
       await openApp(t);
       AppNav.I.go('#/pramans');
