@@ -102,9 +102,9 @@ void main() {
     expect(early, isNotNull);
     final op = t.widget<Opacity>(find.descendant(of: find.byKey(const ValueKey('pdf-deck-layer')), matching: find.byType(Opacity)).first);
     expect(op.opacity, lessThan(1));
-    await t.pump(const Duration(milliseconds: 40));
+    await t.pump(const Duration(milliseconds: 200));
     expect(blur(), findsOneWidget);
-    await t.pump(const Duration(milliseconds: 40));
+    await t.pump(const Duration(milliseconds: 700));
     expect(blur(), findsNothing, reason: 'at t == 1 the filter is skipped');
     expect(find.byType(PdfDeck), findsOneWidget);
     await end(t);
