@@ -38,6 +38,7 @@ class PdfNotify {
   int _lastCount = -1;
   int _lastAt = 0;
   Timer? _trail;
+  bool _trailing = false;
 
   /// How long after the last PDF ended (and its Downloads copy was saved) the summary is posted.
   @visibleForTesting
@@ -100,10 +101,15 @@ class PdfNotify {
     if (count == _lastCount && pct == _lastPercent) return;
     // At most ~2 updates a second, also when the count changes (50 PDFs ending together made 50
     // updates before; Android drops faster ones anyway). The trailing timer posts the last state.
-    if (now - _lastAt < 500) {
+    if (!_trailing && now - _lastAt < 500) {
       _trail ??= Timer(const Duration(milliseconds: 520), () {
         _trail = null;
-        _onQueue();
+        _trailing = true; // the trailing post itself is never throttled again
+        try {
+          _onQueue();
+        } finally {
+          _trailing = false;
+        }
       });
       return;
     }

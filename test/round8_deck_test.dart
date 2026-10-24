@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:granthprabandhan/main.dart';
 import 'package:granthprabandhan/services/pdf_notify.dart';
@@ -65,7 +64,7 @@ void main() {
     await boot(t);
     expect(find.byType(PdfDeck), findsNothing);
     final gate = Completer<String>();
-    final j = PdfQueue.I.start(pjob('run'), (_, __) => gate.future);
+    final j = PdfQueue.I.start(pjob('run'), (_, _) => gate.future);
     await frames(t, 12);
     expect(find.byType(PdfDeck), findsOneWidget);
     final card = t.getRect(find.byType(PdfDeck));
@@ -94,7 +93,7 @@ void main() {
   testWidgets('comes in out of a blur (520 ms); no filter left once it sits', (t) async {
     await boot(t);
     final gate = Completer<String>();
-    PdfQueue.I.start(pjob('run'), (_, __) => gate.future);
+    PdfQueue.I.start(pjob('run'), (_, _) => gate.future);
     await t.pump();
     await t.pump(const Duration(milliseconds: 60));
     expect(blur(), findsOneWidget, reason: 'blur-focus while arriving');
@@ -115,7 +114,7 @@ void main() {
     final q = PdfQueue.I;
     q.jobs.addAll([pjob('a', phase: PdfPhase.done, percent: 100)]);
     final gate = Completer<String>();
-    q.start(pjob('run'), (_, __) => gate.future);
+    q.start(pjob('run'), (_, _) => gate.future);
     await t.pump();
     await t.pump(const Duration(milliseconds: 100));
     await t.tap(find.byKey(const ValueKey('pdf-next')));
@@ -130,7 +129,7 @@ void main() {
     UiPrefs.I.animations = false;
     await boot(t);
     final gate = Completer<String>();
-    PdfQueue.I.start(pjob('run'), (_, __) => gate.future);
+    PdfQueue.I.start(pjob('run'), (_, _) => gate.future);
     await t.pump();
     await t.pump(const Duration(milliseconds: 16));
     expect(find.byType(PdfDeck), findsOneWidget);
@@ -139,7 +138,7 @@ void main() {
     UiPrefs.I.animations = true;
     await boot(t, disableAnimations: true);
     final g2 = Completer<String>();
-    PdfQueue.I.start(pjob('run2'), (_, __) => g2.future);
+    PdfQueue.I.start(pjob('run2'), (_, _) => g2.future);
     await t.pump();
     await t.pump(const Duration(milliseconds: 16));
     expect(find.byType(PdfDeck), findsOneWidget);
@@ -150,7 +149,7 @@ void main() {
   testWidgets('dismiss: scrim, system back, बंद, arrow; taps on the card do not dismiss', (t) async {
     await boot(t);
     final gate = Completer<String>();
-    PdfQueue.I.start(pjob('run'), (_, __) => gate.future);
+    PdfQueue.I.start(pjob('run'), (_, _) => gate.future);
     await frames(t, 12);
     // A tap on the card's own text keeps it open.
     await t.tap(find.byKey(const ValueKey('pdf-title')));
@@ -178,7 +177,7 @@ void main() {
     expect(find.byType(PdfDeck), findsNothing);
     // A second new PDF does.
     final g2 = Completer<String>();
-    PdfQueue.I.start(pjob('run2'), (_, __) => g2.future);
+    PdfQueue.I.start(pjob('run2'), (_, _) => g2.future);
     await frames(t, 12);
     expect(find.byType(PdfDeck), findsOneWidget);
     expect(find.text('1/2'), findsOneWidget, reason: 'the new PDF is the one on show');
@@ -190,7 +189,7 @@ void main() {
     final gates = [for (var i = 0; i < 50; i++) Completer<String>()];
     var opens = 0;
     for (var i = 0; i < 50; i++) {
-      PdfQueue.I.start(pjob('p$i'), (_, __) => gates[i].future);
+      PdfQueue.I.start(pjob('p$i'), (_, _) => gates[i].future);
       await t.pump(const Duration(milliseconds: 10));
       if (find.byType(PdfDeck).evaluate().isNotEmpty) opens++;
       if (i == 0) {
@@ -209,9 +208,9 @@ void main() {
     await boot(t);
     final g1 = Completer<String>();
     final g2 = Completer<String>();
-    final a = PdfQueue.I.start(pjob('one'), (_, __) => g1.future);
+    final a = PdfQueue.I.start(pjob('one'), (_, _) => g1.future);
     await frames(t, 12);
-    final b = PdfQueue.I.start(pjob('two'), (_, __) => g2.future);
+    final b = PdfQueue.I.start(pjob('two'), (_, _) => g2.future);
     await frames(t, 12);
     expect(find.byType(PdfDeck), findsOneWidget);
     finish(a);
