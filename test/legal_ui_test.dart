@@ -1,4 +1,4 @@
-import 'dart:async';
+// ignore_for_file: depend_on_referenced_packages
 import 'dart:convert' show Base64Codec;
 import 'dart:io';
 
@@ -10,10 +10,7 @@ import 'package:granthprabandhan/config.dart';
 import 'package:granthprabandhan/legal/legal_pages.dart';
 import 'package:granthprabandhan/screens/home_shell.dart' show SyncStrip;
 import 'package:granthprabandhan/screens/legal_screen.dart';
-import 'package:granthprabandhan/screens/dashboard_screen.dart';
-import 'package:granthprabandhan/screens/ai_screen.dart';
 import 'package:granthprabandhan/services/remote_config.dart';
-import 'package:granthprabandhan/services/storage.dart';
 import 'package:granthprabandhan/state/router.dart';
 import 'package:granthprabandhan/state/ui_prefs.dart';
 import 'package:granthprabandhan/widgets/common.dart';
@@ -22,7 +19,7 @@ import 'package:url_launcher_platform_interface/url_launcher_platform_interface.
 
 import 'helpers.dart';
 import 'links_grid_test.dart' show settle;
-import 'round5_test.dart' show fingerTap, openApp, openSettings, realPause;
+import 'round5_test.dart' show fingerTap, openApp, openSettings;
 
 class FakeLauncher extends UrlLauncherPlatform {
   final List<String> launched = [];

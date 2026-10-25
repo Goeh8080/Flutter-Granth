@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:granthprabandhan/config.dart';
 import 'package:granthprabandhan/services/analytics.dart';
 import 'package:granthprabandhan/services/remote_config.dart';
 import 'package:granthprabandhan/services/storage.dart';
