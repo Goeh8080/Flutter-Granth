@@ -128,6 +128,26 @@ void main() {
       expect(parseConfig(fx('cfg_valid.json')), isNull);
     });
 
+    test('the live config (v3, structure v2) verifies, applies, places every granth once; jain and kabir icons are set', () {
+      final p = parseConfig(fx('live_config_v3.json'));
+      expect(p, isNotNull, reason: 'signature, schema, structure');
+      expect(p!.version, 3);
+      final bundledIdx = ShelfIndex.build(Shelves.bundled, CatalogStore.I.granths);
+      RemoteConfig.I.debugApply(p);
+      final idx = Shelves.indexFor(CatalogStore.I.granths);
+      final moved = {
+        for (final e in idx.placements.entries)
+          if (bundledIdx.placements[e.key]?.key != e.value.key) e.key: '${bundledIdx.placements[e.key]?.key} → ${e.value.key}',
+      };
+      // ignore: avoid_print
+      print('live v3 vs bundled placements: $moved');
+      expect(idx.placements.length, bundledIdx.placements.length, reason: 'every granth is still placed exactly once');
+      expect(Shelves.structure.religion('jain')?.icon, 'jain');
+      expect(Shelves.structure.religion('kabir')?.icon, 'kabir');
+      expect(RemoteConfig.I.hidden, isEmpty);
+      expect(RemoteConfig.I.aiEnabled && RemoteConfig.I.analyticsEnabled, isTrue);
+    });
+
     test('icon keys', () {
       expect(religionIconKey('ektara'), 'kabir');
       expect(religionIconKey('kabir'), 'kabir');
