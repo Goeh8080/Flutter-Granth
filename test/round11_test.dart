@@ -62,7 +62,7 @@ void main() {
       expect((a.dy - b.dy).abs(), lessThan(2), reason: 'हिन्दू and इस्लाम share a row');
       expect(b.dx, greaterThan(a.dx + 120), reason: 'side by side');
       expect(c.dy, greaterThan(a.dy + 100), reason: 'सिख starts the next row');
-      expect(find.byType(FolderRow), findsNWidgets(8));
+      expect(find.byType(FolderRow), findsNWidgets(9));
       expect(t.takeException(), isNull);
     });
 
@@ -182,7 +182,7 @@ void main() {
           expect(t.takeException(), isNull, reason: '$id $h');
         }
         await open(t, '#/granths');
-        expect(find.byType(ReligionSymbol), findsNWidgets(7), reason: '$id: 6 religions + अन्य');
+        expect(find.byType(ReligionSymbol), findsNWidgets(8), reason: '$id: 7 religions + अन्य');
       });
     }
   });
@@ -191,7 +191,7 @@ void main() {
   group('religion symbols', () {
     test('one symbol per religion, in the shipped structure', () {
       final s = shippedStructure();
-      expect([for (final r in s.religions) r.icon], ['om', 'crescent', 'khanda', 'cross', 'dharma', 'ektara']);
+      expect([for (final r in s.religions) r.icon], ['om', 'crescent', 'khanda', 'cross', 'dharma', 'jain', 'kabir']);
       expect(s.other.icon, 'misc');
       expect(religionSymbolNames.toSet(), {...[for (final r in s.religions) r.icon], 'misc'});
     });
@@ -250,7 +250,7 @@ void main() {
       await surface(t, 412);
       await open(t, '#/granths');
       final names = [for (final e in find.byType(ReligionSymbol).evaluate()) (e.widget as ReligionSymbol).name];
-      expect(names, ['om', 'crescent', 'khanda', 'cross', 'dharma', 'ektara', 'misc']);
+      expect(names, ['om', 'crescent', 'khanda', 'cross', 'dharma', 'jain', 'kabir', 'misc']);
       // and the religion screen's header carries the same symbol
       await open(t, '#/granths?r=sikh');
       expect([for (final e in find.byType(ReligionSymbol).evaluate()) (e.widget as ReligionSymbol).name], contains('khanda'));
