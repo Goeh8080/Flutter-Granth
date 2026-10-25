@@ -21,3 +21,16 @@ const String kLegalUpdated = '25 अक्टूबर 2026';
 /// App version shown on the About page (keep equal to pubspec.yaml; the About page also shows the
 /// version read from the installed package when it is available).
 const String kAppVersion = '1.0.0';
+
+/// The app's build number (the `+1` of 1.0.0+1). The remote config's `min_app` is compared to it.
+const int kBuildNumber = 1;
+
+/// Same as pubspec.yaml's `version:` — sent with analytics batches.
+const String kAppFull = '1.0.0+1';
+
+/// The admin server (public config + anonymous usage counts). See docs/AI.md / docs/REMOTE.md.
+const String kConfigUrl = String.fromEnvironment('CONFIG_URL', defaultValue: 'https://granth-admin.vedpuran8090.workers.dev/config.json');
+const String kEventsUrl = String.fromEnvironment('EVENTS_URL', defaultValue: 'https://granth-admin.vedpuran8090.workers.dev/events');
+
+/// Public key (raw Ed25519, base64) that signs the remote config. Not a secret.
+const String kConfigPublicKey = 'kdPKX/LfjdbPxugpPnpeEejTZlXKzrcoOg88IK83Fb4=';

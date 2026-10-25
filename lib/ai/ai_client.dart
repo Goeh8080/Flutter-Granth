@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../config.dart';
+import '../services/remote_config.dart';
 import 'retriever.dart';
 
 /// One earlier turn sent along as context.
@@ -114,7 +115,7 @@ class AiClient {
     this.timeout = const Duration(seconds: 45),
     this.backoff = const Duration(milliseconds: 1500),
     this.header = kAiClientHeader,
-  }) : endpoint = (endpoint ?? kAiEndpoint).replaceAll(RegExp(r'/+$'), '');
+  }) : endpoint = (endpoint ?? RemoteConfig.I.aiEndpoint ?? kAiEndpoint).replaceAll(RegExp(r'/+$'), '');
 
   final String endpoint;
   final Duration timeout;

@@ -5,6 +5,7 @@ library;
 import 'package:flutter/widgets.dart';
 
 import '../models/models.dart';
+import '../services/analytics.dart';
 import '../services/catalog_store.dart';
 import 'ai_client.dart';
 import 'chat_store.dart';
@@ -106,6 +107,7 @@ class ChatController extends ChangeNotifier {
     sending = true; // locks the composer at once (the save below is asynchronous)
     tick++;
     notifyListeners();
+    Analytics.I.aiAsked();
     await _persist(c);
     await _ask(c);
     return true;
@@ -142,6 +144,7 @@ class ChatController extends ChangeNotifier {
       c.updated = now;
       sending = false;
       tick++;
+      Analytics.I.aiAnswered();
       notifyListeners();
       await _persist(c);
     } on AiException catch (e) {

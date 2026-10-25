@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../services/remote_config.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 
@@ -8,6 +10,7 @@ import '../ai/ai_client.dart';
 import '../ai/chat_controller.dart';
 import '../ai/chat_store.dart';
 import '../models/models.dart';
+import '../services/analytics.dart';
 import '../services/api.dart';
 import '../services/catalog_store.dart';
 import '../services/file_actions.dart';
@@ -130,7 +133,12 @@ class _AiPanelState extends State<AiPanel> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: RemoteConfig.I,
+        builder: (context, _) => RemoteConfig.I.aiEnabled ? _chat(context) : const _AiOff(),
+      );
+
+  Widget _chat(BuildContext context) {
     final dx = panelDx();
     return ListenableBuilder(
       listenable: c,
@@ -341,7 +349,10 @@ class AnswerBubble extends StatelessWidget {
   }
 }
 
-void openPraman(Praman p) => AppNav.I.openLink('#/pramans?id=${Uri.encodeComponent(p.id)}');
+void openPraman(Praman p) {
+  Analytics.I.aiCiteTap();
+  AppNav.I.openLink('#/pramans?id=${Uri.encodeComponent(p.id)}');
+}
 
 class _Citations extends StatelessWidget {
   const _Citations(this.pramans);
@@ -674,4 +685,20 @@ class _HistorySheet extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// `ai_enabled: false` in the remote config: a friendly note instead of the chat.
+class _AiOff extends StatelessWidget {
+  const _AiOff();
+  @override
+  Widget build(BuildContext context) => SliverToBoxAdapter(
+        child: EmptyState(
+          key: const ValueKey('ai-off'),
+          title: 'तत्त्व AI अभी बंद है',
+          body: 'यह सुविधा कुछ समय के लिए रोकी गई है। कृपया थोड़ी देर बाद फिर देखिए।',
+          actionLabel: 'होम पर जाएँ',
+          onAction: () => AppNav.I.go('#/dashboard'),
+        ),
+      );
 }
