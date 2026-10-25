@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:granthprabandhan/ai/ai_client.dart';
+import 'package:granthprabandhan/ai/chat_controller.dart';
+import 'package:granthprabandhan/ai/chat_store.dart';
+import 'package:granthprabandhan/ai/retriever.dart';
 import 'package:granthprabandhan/main.dart';
 import 'package:granthprabandhan/models/structure.dart';
 import 'package:granthprabandhan/screens/shelves_screen.dart';
@@ -402,7 +406,12 @@ void main() {
   });
 
   // ------------------------------------------------------------------------------------
-  group('menu: तत्त्व AI से पूछे (coming soon)', () {
+  group('menu: तत्त्व AI से पूछे (the chat)', () {
+    setUp(() {
+      Retriever.I.reset();
+      ChatController.I = ChatController(client: AiClient(endpoint: 'http://x'), store: ChatStore.fresh());
+    });
+
     Future<void> openMenu(WidgetTester t) async {
       await fingerTap(t, find.byWidgetPredicate((w) => w is GIcon && w.name == 'menu'), wobble: Offset.zero);
       await realPause(t);
@@ -424,33 +433,32 @@ void main() {
       expect(t.takeException(), isNull);
     });
 
-    testWidgets('opens a themed "जल्द आ रहा है" screen with no chat box; Back goes to the dashboard', (t) async {
+    testWidgets('opens the chat (header, text box); Back goes to the dashboard', (t) async {
       await openApp(t);
       await openMenu(t);
       await fingerTap(t, find.byKey(const ValueKey('nav-sparkles')), wobble: Offset.zero);
       await settle(t, 10);
       expect(AppNav.I.hash, '#/ai');
       expect(AppNav.I.menuOpen, isFalse);
-      expect(find.text('जल्द आ रहा है'), findsOneWidget);
-      expect(find.textContaining('प्रश्न पूछ सकेंगे'), findsOneWidget);
-      expect(find.byType(TextField), findsNothing, reason: 'no fake chat');
+      expect(find.text('तत्त्व AI से पूछे'), findsWidgets);
+      expect(find.byType(TextField), findsOneWidget, reason: 'the real chat box');
       expect(t.takeException(), isNull);
       await realPause(t);
       await t.binding.handlePopRoute();
       await settle(t, 8);
       expect(AppNav.I.hash, '#/dashboard');
-      expect(find.text('जल्द आ रहा है'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
     });
 
     for (final (id, title) in cardLooks) {
-      testWidgets('"$title": the coming-soon screen draws at 320 dp, text ×1.3', (t) async {
+      testWidgets('"$title": the chat screen draws at 320 dp, text ×1.3', (t) async {
         UiPrefs.I.look = id;
         await openApp(t);
         await surface(t, 320, 915);
         t.platformDispatcher.textScaleFactorTestValue = 1.3;
         addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
         await open(t, '#/ai');
-        expect(find.text('जल्द आ रहा है'), findsOneWidget);
+        expect(find.byType(TextField), findsOneWidget);
         expect(t.takeException(), isNull);
       });
     }

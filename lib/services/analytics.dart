@@ -180,8 +180,10 @@ class Analytics with WidgetsBindingObserver {
         Panel.legal => r.legalPage == 'contacts' ? 'contacts' : 'legal',
       };
 
-  void _bump(Map<String, int> m, String k, [int by = 1]) {
-    if (m.containsKey(k) || m.length < 200) m[k] = math.min(5000, (m[k] ?? 0) + by);
+  /// Counts are clamped at 5000 (the server's limit); time maps hold milliseconds and are clamped
+  /// at 2 h (the server's 7200 s) via [cap].
+  void _bump(Map<String, int> m, String k, [int by = 1, int cap = 5000]) {
+    if (m.containsKey(k) || m.length < 200) m[k] = math.min(cap, (m[k] ?? 0) + by);
   }
 
   void _closeSeg() {
@@ -194,9 +196,9 @@ class Analytics with WidgetsBindingObserver {
     final c = math.min(ms, 7200000);
     _rollDay();
     _fgMs += c;
-    _bump(_watchScr, _scr, c);
-    if (_segGranth != null) _bump(_watchG, _segGranth!, c);
-    if (_segFolder != null) _bump(_watchF, _segFolder!, c);
+    _bump(_watchScr, _scr, c, 7200000);
+    if (_segGranth != null) _bump(_watchG, _segGranth!, c, 7200000);
+    if (_segFolder != null) _bump(_watchF, _segFolder!, c, 7200000);
   }
 
   void syncResult(bool ok, [String kind = 'other']) {

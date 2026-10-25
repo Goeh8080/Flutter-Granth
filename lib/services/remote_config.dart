@@ -195,7 +195,7 @@ List<Contact>? parseContacts(Object? raw) {
 
 /// Verify + validate a config text. Returns null (with [why] set) when it must be ignored — the
 /// caller then keeps the last good config / the bundled structure. Never throws.
-ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kBuildNumber, void Function(String why)? why}) {
+ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kBuildNumber, List<int>? publicKey, void Function(String why)? why}) {
   ParsedConfig? fail(String m) {
     why?.call(m);
     return null;
@@ -208,7 +208,7 @@ ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kB
     if (j == null) return fail('not an object');
     final sigText = j.remove('sig');
     if (sigText is! String) return fail('no signature');
-    final ok = ed25519Verify(base64Decode(kConfigPublicKey), canonicalBytes(j), base64Decode(sigText));
+    final ok = ed25519Verify(publicKey ?? base64Decode(kConfigPublicKey), canonicalBytes(j), base64Decode(sigText));
     if (!ok) return fail('bad signature');
     if (j['schema'] != 1) return fail('schema');
     final version = j['version'];
@@ -283,7 +283,7 @@ String _normEtag(String? e) => (e ?? '').trim().replaceFirst(RegExp(r'^W/'), '')
 /// signature, a wrong schema, an older version or an app older than `min_app` changes nothing and
 /// shows nothing. Fetched on every catalog sync with a conditional GET (ETag).
 class RemoteConfig extends ChangeNotifier {
-  RemoteConfig({Dio? dio, this.url = kConfigUrl, this.build = kBuildNumber})
+  RemoteConfig({Dio? dio, this.url = kConfigUrl, this.build = kBuildNumber, this.publicKey})
       : _dio = dio ?? Dio(BaseOptions(connectTimeout: const Duration(seconds: 8), receiveTimeout: const Duration(seconds: 8)));
   static RemoteConfig I = RemoteConfig();
 
@@ -294,6 +294,9 @@ class RemoteConfig extends ChangeNotifier {
   final Dio _dio;
   final String url;
   final int build;
+
+  /// Tests sign with their own key; the app always uses [kConfigPublicKey].
+  final List<int>? publicKey;
 
   /// Off under `flutter test` (no test talks to the real server unless it builds its own instance).
   bool enabled = !Platform.environment.containsKey('FLUTTER_TEST');
@@ -335,7 +338,7 @@ class RemoteConfig extends ChangeNotifier {
     try {
       final text = await Store.I.readText(fileName);
       if (text == null) return;
-      final p = parseConfig(text, appBuild: build);
+      final p = parseConfig(text, appBuild: build, publicKey: publicKey);
       if (p == null) {
         unawaited(Store.I.remove(kEtag));
         return;
@@ -374,7 +377,7 @@ class RemoteConfig extends ChangeNotifier {
         return false;
       }
       String? why;
-      final p = parseConfig(body, cachedVersion: version, appBuild: build, why: (m) => why = m);
+      final p = parseConfig(body, cachedVersion: version, appBuild: build, publicKey: publicKey, why: (m) => why = m);
       if (p == null) {
         lastResult = 'ignored:$why';
         return false;
