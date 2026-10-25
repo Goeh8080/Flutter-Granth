@@ -237,7 +237,11 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
         value: SystemUiOverlayStyle.light.copyWith(statusBarColor: GColors.maroon),
         child: Scaffold(
           backgroundColor: GColors.cream,
-          body: Stack(
+          // The AI chat's text box sits under the page (not over it), so the list is only as tall
+          // as what is left above the keyboard and the last message is never hidden.
+          body: Column(children: [
+            Expanded(
+              child: Stack(
             children: [
               const Positioned.fill(child: _RootBackground()),
               ListenableBuilder(
@@ -312,7 +316,10 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
               if (_deckOpen && PdfQueue.I.jobs.isNotEmpty) Positioned.fill(child: PdfDeckLayer(key: const ValueKey('pdf-deck-layer'), selected: _deckSel, onClose: _closeDeck)),
               const _ToastLayer(),
             ],
-          ),
+              ),
+            ),
+            if (r.panel == Panel.ai) const AiComposer(),
+          ]),
         ),
       ),
     );

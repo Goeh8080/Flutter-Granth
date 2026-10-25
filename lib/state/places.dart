@@ -19,6 +19,7 @@ class Places {
         Panel.granths when r.groupId == null => 'religion-list:${r.religionId}',
         Panel.granths => 'group-list:${[r.religionId, r.groupId, r.subId].whereType<String>().join(':')}',
         Panel.gallery => 'gallery-list-place',
+        Panel.ai => 'ai-place',
         Panel.pramans when r.pramanId == null => 'praman-list:${r.granthId ?? ''}:${r.topicId ?? ''}',
         _ => null,
       };
