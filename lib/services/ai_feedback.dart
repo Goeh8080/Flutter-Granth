@@ -106,6 +106,21 @@ class AiFeedback extends ChangeNotifier {
     await flush();
   }
 
+  /// User correction of an AI answer ("ye galat hai, asal mein …"). Queued like 👎 and sent as
+  /// `kind:"correction"` to POST /ai/flags. It only affects future answers after an admin approves it
+  /// (it then appears in /ai/knowledge.json as an admin note).
+  Future<void> correct(String key, {required String question, required String answer, required String correction, String chat = ''}) async {
+    final ck = '$key:c';
+    final q = queue
+      ..removeWhere((e) => e['key'] == ck)
+      ..add({'key': ck, 'kind': 'correction', 'question': _cut(question, 500), 'answer': _cut(answer, 2000), 'correction': _cut(correction.trim(), 2000), 'chat': chat, 'at': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000});
+    while (q.length > kMaxQueue) {
+      q.removeAt(0);
+    }
+    Store.I.setString(kQueue, jsonEncode(q));
+    await flush();
+  }
+
   static String _cut(String s, int n) => s.runes.length > n ? String.fromCharCodes(s.runes.take(n)) : s;
 
   /// Sends the queued reports; each one leaves the queue only after a 2xx (or a 400, which a

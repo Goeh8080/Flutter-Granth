@@ -29,6 +29,8 @@ class AiAnswer {
     this.reason,
     this.askAdmin,
     this.sources = const [],
+    this.refs = const [],
+    this.correction,
   });
   final String answer;
   final List<int> cited;
@@ -44,6 +46,12 @@ class AiAnswer {
 
   /// SRJM book citations `sources:[{book,chapter,url}]`.
   final List<BookSource> sources;
+
+  /// Tappable app references `refs:[{type, id, title, route, cited}]` (praman / topic / granth / note).
+  final List<AiRef> refs;
+
+  /// Worker detected a user correction ("ye galat hai, asal mein …"): offer "सुधार एडमिन को भेजें".
+  final AiCorrection? correction;
 
   /// Whether to offer "प्रश्न एडमिन को भेजें?": `ask_admin:true`, else `found` alone decides; null → heuristic.
   bool? get offerAdmin => askAdmin == true ? true : (found != null ? !found! : notFound);
@@ -66,6 +74,43 @@ class BookSource {
     final b = s(j['book'], 120);
     if (b.isEmpty) return null;
     return BookSource(book: b, chapter: s(j['chapter'], 120), url: s(j['url'], 500));
+  }
+}
+
+/// One tappable app reference under an answer. `route` is an in-app hash route:
+/// praman `#/pramans?id=ID`, topic `#/pramans?topic=ID`, granth `#/pramans?granth=ID`; note has none.
+class AiRef {
+  const AiRef({required this.type, required this.id, this.title = '', this.route, this.cited = false});
+  final String type; // praman | topic | granth | note
+  final int id;
+  final String title;
+  final String? route;
+  final bool cited; // false = related (topic/granth of a cited praman, or a suggested praman)
+  Map<String, Object> toJson() => {'type': type, 'id': id, if (title.isNotEmpty) 'title': title, 'route': ?route, 'cited': cited};
+  static AiRef? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final t = j['type'], id = j['id'];
+    if (t is! String || !const {'praman', 'topic', 'granth', 'note'}.contains(t) || id is! int || id <= 0) return null;
+    final r = j['route'];
+    final okRoute = r is String && RegExp(r'^#/pramans\?(id|topic|granth)=\d+$').hasMatch(r);
+    final title = j['title'] is String ? (j['title'] as String).trim() : '';
+    return AiRef(type: t, id: id, title: title.length > 120 ? title.substring(0, 120) : title, route: okRoute ? r : null, cited: j['cited'] == true);
+  }
+}
+
+List<AiRef> parseRefs(Object? v) => [
+  if (v is List)
+    for (final e in v.take(12)) ?AiRef.fromJson(e),
+];
+
+class AiCorrection {
+  const AiCorrection({required this.question, required this.answer, required this.text});
+  final String question, answer, text;
+  Map<String, Object> toJson() => {'detected': true, 'question': question, 'answer': answer, 'text': text};
+  static AiCorrection? fromJson(Object? j) {
+    if (j is! Map || j['detected'] != true) return null;
+    String s(Object? v) => v is String ? v : '';
+    return AiCorrection(question: s(j['question']), answer: s(j['answer']), text: s(j['text']));
   }
 }
 
@@ -168,6 +213,8 @@ AiAnswer parseAskResponse(int status, String body) {
           reason: json['reason'] is String && (json['reason'] as String).isNotEmpty ? json['reason'] as String : null,
           askAdmin: json['ask_admin'] is bool ? json['ask_admin'] as bool : null,
           sources: parseSources(json['sources']),
+          refs: parseRefs(json['refs']),
+          correction: AiCorrection.fromJson(json['correction']),
         );
       }
     }

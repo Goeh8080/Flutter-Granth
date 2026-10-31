@@ -137,8 +137,7 @@ class _AiPanelState extends State<AiPanel> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      ListenableBuilder(listenable: RemoteConfig.I, builder: (context, _) => RemoteConfig.I.aiEnabled ? _chat(context) : const _AiOff());
+  Widget build(BuildContext context) => ListenableBuilder(listenable: RemoteConfig.I, builder: (context, _) => RemoteConfig.I.aiEnabled ? _chat(context) : const _AiOff());
 
   Widget _chat(BuildContext context) {
     final dx = panelDx();
@@ -214,13 +213,7 @@ class _AiPanelState extends State<AiPanel> {
                         ? UserBubble(m.text)
                         : m.isAdmin
                         ? AdminBubble(m)
-                        : AnswerBubble(
-                            key: i == lastAi ? _lastAnswer : ValueKey('ans-${c.current?.id}-$i'),
-                            msg: m,
-                            question: i > 0 ? msgs[i - 1].text : '',
-                            find: _find,
-                            chatId: c.current?.id ?? '',
-                          ),
+                        : AnswerBubble(key: i == lastAi ? _lastAnswer : ValueKey('ans-${c.current?.id}-$i'), msg: m, question: i > 0 ? msgs[i - 1].text : '', find: _find, chatId: c.current?.id ?? ''),
                   );
                 },
               ),
@@ -313,14 +306,7 @@ class _Intro extends StatelessWidget {
           runSpacing: 8,
           children: [
             for (final s in kAiSuggestions)
-              Pill(
-                key: ValueKey('ai-sug-$s'),
-                label: s,
-                tone: PillTone.topic,
-                fontSize: 14,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                onTap: () => onAsk(s),
-              ),
+              Pill(key: ValueKey('ai-sug-$s'), label: s, tone: PillTone.topic, fontSize: 14, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), onTap: () => onAsk(s)),
           ],
         ),
         const SizedBox(height: 14),
@@ -366,12 +352,7 @@ class UserBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: const BoxDecoration(
           gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [GColors.maroonLight, GColors.maroon]),
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(18),
-            topRight: Radius.circular(18),
-            bottomLeft: Radius.circular(18),
-            bottomRight: Radius.circular(5),
-          ),
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(18), topRight: Radius.circular(18), bottomLeft: Radius.circular(18), bottomRight: Radius.circular(5)),
         ),
         child: SelectableText(text, style: GText.sans(size: 16, color: GColors.paper, height: 1.55)),
       ),
@@ -428,10 +409,27 @@ class _AnswerBubbleState extends State<AnswerBubble> {
 
   Future<void> _down() async {
     if (AiFeedback.I.vote(_fkey) == -1) return Toast.show('यह उत्तर पहले ही admin को भेजा जा चुका है');
-    final reason = await showPop<String>(context, (ctx) => const AiReasonCard(), blurFocus: true);
-    if (reason == null) return; // closed: nothing sent
-    unawaited(AiFeedback.I.down(_fkey, question: widget.question, answer: _plain, reason: reason, chat: widget.chatId));
+    final r = await showPop<AiDownResult>(context, (ctx) => const AiReasonCard(), blurFocus: true);
+    if (r == null) return; // closed: nothing sent
+    if (r.correction) {
+      unawaited(AiFeedback.I.correct(_fkey, question: widget.question, answer: _plain, correction: r.text, chat: widget.chatId));
+      setState(() => _corrSent = true);
+      return Toast.show('धन्यवाद! आपका सुधार admin को जाँच के लिए भेजा जा रहा है');
+    }
+    unawaited(AiFeedback.I.down(_fkey, question: widget.question, answer: _plain, reason: r.text, chat: widget.chatId));
     Toast.show('धन्यवाद! यह उत्तर admin को जाँच के लिए भेजा जा रहा है');
+  }
+
+  bool _corrSent = false;
+
+  /// Worker w3 detected "ye galat hai, asal mein …": send it to the admin as a correction.
+  void _sendCorrection() {
+    final c = msg.correction;
+    if (c == null || _corrSent) return;
+    if (c.text.trim().isEmpty) return Toast.show('सुधार खाली है');
+    unawaited(AiFeedback.I.correct(_fkey, question: c.question.isNotEmpty ? c.question : widget.question, answer: c.answer, correction: c.text, chat: widget.chatId));
+    setState(() => _corrSent = true);
+    Toast.show('धन्यवाद! आपका सुधार admin को जाँच के लिए भेजा जा रहा है');
   }
 
   Future<void> _cardPdf() async {
@@ -472,7 +470,16 @@ class _AnswerBubbleState extends State<AnswerBubble> {
                 children: [
                   // Long-press selects a word and shows Copy; handles extend the selection.
                   SelectionArea(child: LightMarkdown(_text, size: 15.5)),
-                  if (cited.isNotEmpty) ...[
+                  if (msg.refs.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'आधार प्रमाण',
+                      style: GText.sans(size: 12.5, weight: FontWeight.w700, color: GColors.brown),
+                    ),
+                    const SizedBox(height: 6),
+                    AiRefPills(msg.refs, find: widget.find),
+                    for (final p in cited.take(2)) Padding(padding: const EdgeInsets.only(top: 8), child: PramanPreview(p)),
+                  ] else if (cited.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
                       'आधार प्रमाण',
@@ -483,6 +490,19 @@ class _AnswerBubbleState extends State<AnswerBubble> {
                     for (final p in cited.take(2)) Padding(padding: const EdgeInsets.only(top: 8), child: PramanPreview(p)),
                   ],
                   if (msg.sources.isNotEmpty) ...[const SizedBox(height: 10), BookSourceLinks(msg.sources)],
+                  if (msg.correction != null && msg.correction!.text.trim().isNotEmpty && RemoteConfig.I.aiFlagsEnabled) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Pill(
+                        key: const ValueKey('ai-send-correction'),
+                        icon: 'send',
+                        label: _corrSent ? 'सुधार भेजा ✓' : 'सुधार एडमिन को भेजें',
+                        tone: PillTone.topic,
+                        onTap: _corrSent ? null : _sendCorrection,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   ListenableBuilder(
                     listenable: AiFeedback.I,
@@ -492,21 +512,9 @@ class _AnswerBubbleState extends State<AnswerBubble> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
-                          Pill(
-                            key: const ValueKey('ai-up'),
-                            icon: 'thumbs-up',
-                            label: v == 1 ? 'पसंद ✓' : 'पसंद',
-                            tone: v == 1 ? PillTone.topic : PillTone.plain,
-                            onTap: _up,
-                          ),
+                          Pill(key: const ValueKey('ai-up'), icon: 'thumbs-up', label: v == 1 ? 'पसंद ✓' : 'पसंद', tone: v == 1 ? PillTone.topic : PillTone.plain, onTap: _up),
                           if (RemoteConfig.I.aiFlagsEnabled)
-                            Pill(
-                              key: const ValueKey('ai-down'),
-                              icon: 'thumbs-down',
-                              label: v == -1 ? 'भेजा ✓' : 'गलत',
-                              tone: v == -1 ? PillTone.topic : PillTone.plain,
-                              onTap: _down,
-                            ),
+                            Pill(key: const ValueKey('ai-down'), icon: 'thumbs-down', label: v == -1 ? 'भेजा ✓' : 'गलत', tone: v == -1 ? PillTone.topic : PillTone.plain, onTap: _down),
                           Pill(key: const ValueKey('ai-share'), icon: 'share-2', label: 'शेयर', onTap: _share),
                           Pill(key: const ValueKey('ai-copy'), icon: 'copy', label: 'कॉपी', onTap: _copy),
                           Pill(key: const ValueKey('ai-card-pdf'), icon: 'file-text', label: _busy ? 'बन रही…' : 'कार्ड PDF', onTap: _cardPdf),
@@ -524,7 +532,10 @@ class _AnswerBubbleState extends State<AnswerBubble> {
   }
 }
 
-/// 👎: an optional reason, then Send. Pops the reason ('' when empty), or null when closed.
+/// What the 👎 sheet pops: a reason (`correction:false`) or a user correction (`correction:true`).
+typedef AiDownResult = ({String text, bool correction});
+
+/// 👎: an optional reason, then Send; or "सुधार भेजें" with the correct answer. Pops an [AiDownResult], or null when closed.
 class AiReasonCard extends StatefulWidget {
   const AiReasonCard({super.key});
   @override
@@ -554,10 +565,10 @@ class _AiReasonCardState extends State<AiReasonCard> {
           controller: _c,
           maxLines: 3,
           minLines: 2,
-          maxLength: 300,
+          maxLength: 2000,
           style: GText.sans(size: 15),
           decoration: InputDecoration(
-            hintText: 'कारण (वैकल्पिक)',
+            hintText: 'कारण (वैकल्पिक) या सही जानकारी',
             filled: true,
             fillColor: GColors.cream,
             border: OutlineInputBorder(
@@ -567,6 +578,17 @@ class _AiReasonCardState extends State<AiReasonCard> {
           ),
         ),
         const SizedBox(height: 6),
+        SheetButton(
+          key: const ValueKey('ai-reason-correct'),
+          icon: 'send',
+          label: 'सुधार भेजें',
+          onTap: () {
+            final t = _c.text.trim();
+            if (t.isEmpty) return Toast.show('पहले सही जानकारी लिखें, फिर सुधार भेजें');
+            Navigator.pop<AiDownResult>(context, (text: t, correction: true));
+          },
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -574,7 +596,7 @@ class _AiReasonCardState extends State<AiReasonCard> {
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: SheetButton(key: const ValueKey('ai-reason-send'), label: 'भेजें', primary: true, onTap: () => Navigator.pop(context, _c.text.trim())),
+              child: SheetButton(key: const ValueKey('ai-reason-send'), label: 'भेजें', primary: true, onTap: () => Navigator.pop<AiDownResult>(context, (text: _c.text.trim(), correction: false))),
             ),
           ],
         ),
@@ -828,15 +850,7 @@ class AskAdminCard extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            if (offer.canRetry)
-              SheetButton(
-                key: const ValueKey('ask-admin-yes'),
-                label: offer.sending ? 'भेज रहे हैं…' : 'हाँ',
-                icon: 'send',
-                primary: true,
-                enabled: !offer.sending,
-                onTap: onYes,
-              ),
+            if (offer.canRetry) SheetButton(key: const ValueKey('ask-admin-yes'), label: offer.sending ? 'भेज रहे हैं…' : 'हाँ', icon: 'send', primary: true, enabled: !offer.sending, onTap: onYes),
             SheetButton(key: const ValueKey('ask-admin-no'), label: 'नहीं', icon: 'x', onTap: onNo),
           ],
         ),
@@ -1116,6 +1130,74 @@ class _AiOff extends StatelessWidget {
   );
 }
 
+/// Worker w3 `refs`: tappable pills that open app routes. Cited refs are prominent (topic tone,
+/// bold); related ones (topic/granth of a cited praman, suggestions) are plain and smaller.
+class AiRefPills extends StatelessWidget {
+  const AiRefPills(this.refs, {super.key, required this.find});
+  final List<AiRef> refs;
+  final Praman? Function(int id) find;
+
+  static String _icon(String t) => switch (t) {
+    'praman' => '📖',
+    'topic' => '🏷️',
+    'granth' => '📚',
+    _ => '📝',
+  };
+
+  String _label(AiRef r) {
+    var t = r.title;
+    if (r.type == 'praman') {
+      final p = find(r.id);
+      if (t.isEmpty) t = p?.title ?? '';
+      if (p != null && p.granthTitle.isNotEmpty && !t.contains('›')) t = '${p.granthTitle} › $t';
+    }
+    if (t.isEmpty) {
+      t = switch (r.type) {
+        'praman' => 'प्रमाण',
+        'topic' => 'विषय',
+        'granth' => 'ग्रंथ',
+        _ => 'एडमिन नोट',
+      };
+    }
+    return '${_icon(r.type)} $t';
+  }
+
+  void _open(AiRef r) {
+    final route = r.route;
+    if (route == null) return;
+    if (r.type == 'praman') Analytics.I.aiCiteTap(find(r.id)?.granthId.isEmpty == false ? find(r.id)!.granthId : null);
+    AppNav.I.openLink(route);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...refs.where((r) => r.cited), ...refs.where((r) => !r.cited)];
+    return LayoutBuilder(
+      builder: (context, c) => Wrap(
+        key: const ValueKey('ai-refs'),
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final (i, r) in sorted.indexed)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: c.maxWidth),
+              child: Pill(
+                key: ValueKey('ai-ref-$i-${r.type}-${r.id}'),
+                label: _label(r),
+                tone: r.cited ? PillTone.topic : PillTone.plain,
+                maxLines: 2,
+                fontSize: r.cited ? 12.5 : 11.5,
+                weight: r.cited ? FontWeight.w700 : FontWeight.w500,
+                padding: r.cited ? const EdgeInsets.symmetric(horizontal: 10, vertical: 7) : const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                onTap: r.route == null ? null : () => _open(r),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 /// SRJM book citations under an answer: small links; a tap opens the url outside the app.
 class BookSourceLinks extends StatelessWidget {
   const BookSourceLinks(this.sources, {super.key});
@@ -1139,11 +1221,7 @@ class BookSourceLinks extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Text(
               '📖 ${s.label}',
-              style: GText.sans(
-                size: 12.5,
-                color: s.hasLink ? GColors.maroon : GColors.muted,
-                height: 1.4,
-              ).copyWith(decoration: s.hasLink ? TextDecoration.underline : null),
+              style: GText.sans(size: 12.5, color: s.hasLink ? GColors.maroon : GColors.muted, height: 1.4).copyWith(decoration: s.hasLink ? TextDecoration.underline : null),
             ),
           ),
         ),

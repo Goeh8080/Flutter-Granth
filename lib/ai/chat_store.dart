@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../services/storage.dart';
-import 'ai_client.dart' show BookSource, parseSources;
+import 'ai_client.dart' show AiCorrection, AiRef, BookSource, parseRefs, parseSources;
 
 const int kMaxChats = 50;
 const int kMaxMessages = 60;
@@ -16,7 +16,13 @@ const int kMaxMessageChars = 8000;
 const int kTitleChars = 48;
 
 class ChatMsg {
-  const ChatMsg({required this.role, required this.text, this.cited = const [], this.at = 0, this.ref, this.ask, this.sources = const []});
+  const ChatMsg({required this.role, required this.text, this.cited = const [], this.at = 0, this.ref, this.ask, this.sources = const [], this.refs = const [], this.correction});
+
+  /// Tappable app references (assistant messages only; Worker w3+).
+  final List<AiRef> refs;
+
+  /// Worker-detected user correction to offer "सुधार एडमिन को भेजें" (Worker w3+).
+  final AiCorrection? correction;
 
   /// SRJM book citations (assistant messages only).
   final List<BookSource> sources;
@@ -46,6 +52,8 @@ class ChatMsg {
     'ref': ?ref,
     'ask': ?ask,
     if (sources.isNotEmpty) 'sources': [for (final s in sources) s.toJson()],
+    if (refs.isNotEmpty) 'refs': [for (final r in refs) r.toJson()],
+    'correction': ?correction?.toJson(),
   };
 
   static ChatMsg? fromJson(Object? j) {
@@ -65,6 +73,8 @@ class ChatMsg {
       at: j['at'] is int ? j['at'] as int : 0,
       ref: j['ref'] is String ? j['ref'] as String : null,
       sources: parseSources(j['sources']),
+      refs: parseRefs(j['refs']),
+      correction: AiCorrection.fromJson(j['correction']),
       ask: j['ask'] is String ? j['ask'] as String : null,
     );
   }

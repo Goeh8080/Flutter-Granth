@@ -231,6 +231,8 @@ class ChatController extends ChangeNotifier {
           cited: known,
           at: now,
           sources: a.sources,
+          refs: a.refs,
+          correction: a.correction,
         ),
       );
       c.updated = now;
@@ -335,13 +337,7 @@ class ChatController extends ChangeNotifier {
       if (c.messages.any((m) => m.ref == ref)) return true;
       final now = DateTime.now().millisecondsSinceEpoch;
       c.messages.add(
-        ChatMsg(
-          role: 'admin',
-          text: a.answer.length > kMaxMessageChars ? a.answer.substring(0, kMaxMessageChars) : a.answer,
-          at: now,
-          ref: ref,
-          ask: a.question.isEmpty ? null : a.question,
-        ),
+        ChatMsg(role: 'admin', text: a.answer.length > kMaxMessageChars ? a.answer.substring(0, kMaxMessageChars) : a.answer, at: now, ref: ref, ask: a.question.isEmpty ? null : a.question),
       );
       c.updated = now;
       chats = await store.save(c);
