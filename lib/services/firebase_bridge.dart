@@ -125,27 +125,44 @@ class FirebaseBridge extends ChangeNotifier {
   }
 
   /// Google sign-in (optional). Returns null on success, or a Hindi message.
+  Future<void>? _gInit;
+
   Future<String?> signIn() async {
     if (busy) return null;
-    if (!ready) return error = 'लॉगिन अभी उपलब्ध नहीं है।';
+    if (!ready) {
+      debugPrint('sign-in: firebase not ready (google-services.json missing from build?)');
+      return error = 'लॉगिन अभी उपलब्ध नहीं है (Firebase चालू नहीं)।';
+    }
     busy = true;
     error = null;
     notifyListeners();
     try {
       final g = GoogleSignIn.instance;
-      await g.initialize(serverClientId: kGoogleWebClientId.isEmpty ? null : kGoogleWebClientId);
+      // google_sign_in 7.x: initialize() must be called exactly once per app run.
+      await (_gInit ??= g.initialize(serverClientId: kGoogleWebClientId.isEmpty ? null : kGoogleWebClientId).catchError((Object e) {
+        _gInit = null;
+        throw e;
+      }));
       final acc = await g.authenticate();
       final idToken = acc.authentication.idToken;
+      if (idToken == null || idToken.isEmpty) throw StateError('no-id-token');
       final cred = await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken));
       final u = cred.user;
       await _setAccount(AccountInfo(email: u?.email ?? acc.email, name: u?.displayName ?? acc.displayName ?? '', photo: u?.photoURL ?? acc.photoUrl ?? ''));
       return null;
     } on GoogleSignInException catch (e) {
-      error = e.code == GoogleSignInExceptionCode.canceled ? null : 'Google लॉगिन नहीं हो सका।';
-      return error;
-    } catch (e) {
+      debugPrint('google sign-in failed: code=${e.code.name} desc=${e.description}');
+      if (e.code == GoogleSignInExceptionCode.canceled) return error = null;
       recordError(e, StackTrace.current);
-      return error = 'Google लॉगिन नहीं हो सका।';
+      return error = 'Google लॉगिन नहीं हो सका (${e.code.name})। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
+    } on FirebaseAuthException catch (e) {
+      debugPrint('firebase auth sign-in failed: code=${e.code} msg=${e.message}');
+      recordError(e, StackTrace.current);
+      return error = 'लॉगिन नहीं हो सका (${e.code})। कृपया दोबारा प्रयास करें।';
+    } catch (e) {
+      debugPrint('sign-in failed: $e');
+      recordError(e, StackTrace.current);
+      return error = 'Google लॉगिन नहीं हो सका ($e)।';
     } finally {
       busy = false;
       notifyListeners();
