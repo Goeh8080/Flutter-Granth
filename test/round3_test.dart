@@ -74,6 +74,8 @@ void main() {
       await tester.binding.setSurfaceSize(const Size(412, 915));
       await tester.pumpWidget(const GranthApp(splash: false, links: false));
       await frames(tester, 5);
+      AppNav.I.go('#/settings?s=sync'); // Round-2: the sync strip lives in Settings → सिंक / ऑफ़लाइन.
+      await frames(tester, 5);
       expect(find.byKey(const ValueKey('sync-card')), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('sync-button')));

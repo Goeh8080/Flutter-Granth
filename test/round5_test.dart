@@ -360,6 +360,8 @@ void main() {
 
     testWidgets('sync strip opens its card; no pill anywhere', (t) async {
       await openApp(t);
+      AppNav.I.go('#/settings?s=sync'); // Round-2: the sync strip lives in Settings → सिंक / ऑफ़लाइन.
+      await settle(t, 8);
       expect(find.byKey(const ValueKey('sync-card')), findsNothing);
       await t.tap(find.byKey(const ValueKey('sync-card-toggle')));
       await settle(t, 6);

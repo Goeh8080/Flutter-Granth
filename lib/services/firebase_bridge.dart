@@ -54,6 +54,9 @@ class FirebaseBridge extends ChangeNotifier {
   bool ready = false;
   bool busy = false;
   String? error;
+
+  /// Round-2: what the sign-in is doing right now (shown under the button), e.g. "Google खाता…".
+  String? stage;
   AccountInfo? _account;
 
   static bool get _supported => !kIsWeb && Platform.isAndroid && !Platform.environment.containsKey('FLUTTER_TEST');
@@ -135,7 +138,7 @@ class FirebaseBridge extends ChangeNotifier {
     }
     busy = true;
     error = null;
-    notifyListeners();
+    _stage('Google से जुड़ रहे हैं…');
     try {
       final g = GoogleSignIn.instance;
       // google_sign_in 7.x: initialize() must be called exactly once per app run.
@@ -143,18 +146,28 @@ class FirebaseBridge extends ChangeNotifier {
         _gInit = null;
         throw e;
       }));
+      if (!g.supportsAuthenticate()) throw StateError('authenticate-unsupported');
+      _stage('Google खाता चुनें…');
       final acc = await g.authenticate();
+      _stage('खाता मिला, लॉगिन हो रहा है…');
       final idToken = acc.authentication.idToken;
       if (idToken == null || idToken.isEmpty) throw StateError('no-id-token');
-      final cred = await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken));
+      // signInWithCredential also creates the Firebase user on the first sign-in (sign-up).
+      final cred = await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken)).timeout(const Duration(seconds: 30));
       final u = cred.user;
-      await _setAccount(AccountInfo(email: u?.email ?? acc.email, name: u?.displayName ?? acc.displayName ?? '', photo: u?.photoURL ?? acc.photoUrl ?? ''));
+      if (u == null) throw StateError('no-firebase-user');
+      await _setAccount(AccountInfo(email: u.email ?? acc.email, name: u.displayName ?? acc.displayName ?? '', photo: u.photoURL ?? acc.photoUrl ?? ''));
       return null;
     } on GoogleSignInException catch (e) {
       debugPrint('google sign-in failed: code=${e.code.name} desc=${e.description}');
-      if (e.code == GoogleSignInExceptionCode.canceled) return error = null;
       recordError(e, StackTrace.current);
-      return error = 'Google लॉगिन नहीं हो सका (${e.code.name})। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
+      // Round-2: "canceled" is also what Credential Manager reports when the account was picked
+      // but Google refused the token (OAuth client / SHA / consent problems), so it is shown too.
+      final desc = (e.description ?? '').trim();
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        return error = 'लॉगिन पूरा नहीं हुआ (canceled${desc.isEmpty ? '' : ': $desc'})। दोबारा प्रयास करें।';
+      }
+      return error = 'Google लॉगिन नहीं हो सका (${e.code.name}${desc.isEmpty ? '' : ': $desc'})। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
     } on FirebaseAuthException catch (e) {
       debugPrint('firebase auth sign-in failed: code=${e.code} msg=${e.message}');
       recordError(e, StackTrace.current);
@@ -165,8 +178,14 @@ class FirebaseBridge extends ChangeNotifier {
       return error = 'Google लॉगिन नहीं हो सका ($e)।';
     } finally {
       busy = false;
+      stage = null;
       notifyListeners();
     }
+  }
+
+  void _stage(String s) {
+    stage = s;
+    notifyListeners();
   }
 
   Future<void> signOut() async {

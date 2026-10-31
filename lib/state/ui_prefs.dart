@@ -80,14 +80,14 @@ class UiPrefs extends ChangeNotifier {
   // ---- Extra settings (added in round 5; the web app has none of these) ----
 
   /// Reading text size: small / normal / large.
-  String get textSize => switch (Store.I.getString(Store.kTextSize)) { 'small' => 'small', 'large' => 'large', _ => 'normal' };
+  String get textSize => switch (Store.I.getString(Store.kTextSize)) { 'small' => 'small', 'large' => 'large', 'xlarge' => 'xlarge', _ => 'normal' };
   set textSize(String v) {
     Store.I.setString(Store.kTextSize, v);
     textFactor.value = _factor(v);
     notifyListeners();
   }
 
-  static double _factor(String v) => switch (v) { 'small' => 0.9, 'large' => 1.15, _ => 1.0 };
+  static double _factor(String v) => switch (v) { 'small' => 0.9, 'large' => 1.15, 'xlarge' => 1.3, _ => 1.0 };
 
   /// Multiplier on the phone's own text size; only the app's text scaler listens to it.
   late final ValueNotifier<double> textFactor = ValueNotifier(_factor(textSize));

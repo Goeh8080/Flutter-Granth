@@ -157,6 +157,18 @@ class LoginPage extends StatelessWidget {
                       if (e != null) Toast.show(e);
                     },
                   ),
+                  // Round-2: the Toast layer lives in HomeShell, which is not mounted behind this
+                  // page, so progress and the error code are shown right here.
+                  if (FirebaseBridge.I.busy && FirebaseBridge.I.stage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Text(FirebaseBridge.I.stage!, key: const ValueKey('login-stage'), textAlign: TextAlign.center, style: GText.sans(size: 13.5, color: GColors.brown)),
+                    ),
+                  if (!FirebaseBridge.I.busy && FirebaseBridge.I.error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: SelectableText(FirebaseBridge.I.error!, key: const ValueKey('login-error'), textAlign: TextAlign.center, style: GText.sans(size: 13.5, color: const Color(0xFFB3261E))),
+                    ),
                   const SizedBox(height: 10),
                   Center(
                     child: TextButton(

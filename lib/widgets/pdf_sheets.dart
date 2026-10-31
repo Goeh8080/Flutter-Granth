@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../screens/home_shell.dart' show SyncStrip;
 import '../models/models.dart';
 import '../services/api.dart' show kPlayStoreUrl;
 import '../services/catalog_store.dart';
@@ -576,8 +577,12 @@ class SettingsPage extends StatelessWidget {
 /// A settings folder: id, title, hint, icon, tone, and the link it opens.
 typedef SettingsFolder = ({String id, String title, String sub, String icon, Tone tone});
 
+/// Settings → डिस्प्ले → अक्षर का आकार steps (factor on the phone's size, capped at 1.3).
+const textSizeOptions = [('small', 'छोटा'), ('normal', 'सामान्य'), ('large', 'बड़ा'), ('xlarge', 'बहुत बड़ा')];
+
 const settingsFolders = <SettingsFolder>[
   (id: 'display', title: 'डिस्प्ले', sub: 'PDF स्टाइल, लेआउट, अक्षर का आकार, एनिमेशन', icon: 'layout-grid', tone: Tone.saffron),
+  (id: 'sync', title: 'सिंक / ऑफ़लाइन', sub: 'ऑफ़लाइन स्थिति, आख़िरी सिंक, सिंक बटन', icon: 'refresh-cw', tone: Tone.saffron),
   (id: 'downloads', title: 'डाउनलोड', sub: 'सिंक, WiFi, स्टोरेज और जाँच', icon: 'folder-down', tone: Tone.maroon),
   (id: 'notify', title: 'सूचनाएँ', sub: 'आज का प्रमाण, नए प्रमाण, नए विषय', icon: 'bell', tone: Tone.gold),
   (id: 'account', title: 'अकाउंट', sub: 'Google लॉगिन, आपके आँकड़े', icon: 'user', tone: Tone.maroon),
@@ -771,13 +776,23 @@ class _SettingsState extends State<_Settings> {
                 ]),
                 // ---- Extra settings (not in the web app), same pills and headings ----
                 _block('अक्षर का आकार', [
-                  for (final (id, title) in const [('small', 'छोटा'), ('normal', 'सामान्य'), ('large', 'बड़ा')])
+                  for (final (id, title) in textSizeOptions)
                     Pill(key: ValueKey('set-text-$id'), direct: true, label: title, tone: UiPrefs.I.textSize == id ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.textSize = id),
+                  SizedBox(
+                    width: double.infinity,
+                    child: Text('नमूना: सत ग्रंथों के प्रमाण', key: const ValueKey('set-text-sample'), style: GText.sans(size: 15, color: GColors.brown)),
+                  ),
                 ]),
                 _block('एनिमेशन', [
                   Pill(key: const ValueKey('set-anim-on'), direct: true, label: 'चालू', tone: UiPrefs.I.animations ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.animations = true),
                   Pill(key: const ValueKey('set-anim-low'), direct: true, label: 'कम', tone: UiPrefs.I.animations ? PillTone.plain : PillTone.maroon, onTap: () => UiPrefs.I.animations = false),
                 ]),
+              ],
+              if (widget.section == 'sync') ...[
+                _section('sync', 'सिंक / ऑफ़लाइन', 'refresh-cw'),
+                const Padding(padding: EdgeInsets.only(top: 10), child: SyncStrip(key: ValueKey('set-sync-strip'))),
+                _toggle('auto-sync', 'अपने-आप सिंक (हर 2 मिनट)', UiPrefs.I.autoSync, (v) => UiPrefs.I.autoSync = v),
+                _toggle('auto-download', 'अपने-आप डाउनलोड (बंद हो तो सिर्फ़ टैप पर)', UiPrefs.I.autoDownload, (v) => UiPrefs.I.autoDownload = v),
               ],
               if (widget.section == 'downloads') ...[
                 _section('downloads', 'डाउनलोड और सिंक', 'folder-down'),

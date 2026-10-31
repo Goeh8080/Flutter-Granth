@@ -244,6 +244,10 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final r = nav.route;
+    // Round-2: no tab bar on the AI chat (its question box sits at the bottom) or while the
+    // keyboard is up for any input, so the bar never sits between a page and its input.
+    final showTabs = BottomTabs.visibleFor(r, context);
+    final tabsH = showTabs ? BottomTabs.heightOf(context) : 0.0;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -275,9 +279,8 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                             ),
                             SliverToBoxAdapter(child: _Hamburger(open: nav.menuOpen)),
                             SliverToBoxAdapter(child: _NavMenu(open: nav.menuOpen)),
-                            const SliverToBoxAdapter(child: SyncStrip()),
                             SliverPadding(
-                              padding: EdgeInsets.fromLTRB(16, 16, 16, 72 + BottomTabs.heightOf(context)),
+                              padding: EdgeInsets.fromLTRB(16, 16, 16, 72 + tabsH),
                               sliver: SliverMainAxisGroup(
                                 slivers: [
                                   if (s.status == SyncStatus.booting && total == 0) const SliverToBoxAdapter(child: EmptyState(title: 'सेव की हुई प्रति खोली जा रही है…', spinner: true)),
@@ -302,7 +305,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                     Positioned(
                       right: 48,
                       // Round 14: sits above the floating "Ask Tatv AI" button when that is shown.
-                      bottom: (_fabShown(r) ? 104 : 36) + BottomTabs.heightOf(context),
+                      bottom: (_fabShown(r) ? 104 : 36) + tabsH,
                       child: ValueListenableBuilder<bool>(
                         valueListenable: _showTop,
                         builder: (context, show, _) => AnimatedSlide(
@@ -334,7 +337,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                     if (_fabShown(r))
                       Positioned(
                         right: 16,
-                        bottom: 36 + BottomTabs.heightOf(context),
+                        bottom: 36 + tabsH,
                         child: Pressable(
                           key: const ValueKey('ask-ai-fab'),
                           onTap: () => AppNav.I.openLink('#/ai'),
@@ -359,7 +362,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                    Positioned(left: 0, right: 0, bottom: 0, child: BottomTabs(route: r)),
+                    if (showTabs) Positioned(left: 0, right: 0, bottom: 0, child: BottomTabs(route: r)),
                     // ashok's PDF deck: a centred modal over a scrim (it also covers the header).
                     if (_deckOpen && PdfQueue.I.jobs.isNotEmpty)
                       Positioned.fill(
@@ -827,6 +830,9 @@ class BottomTabs extends StatelessWidget {
 
   /// Space the bar takes at the bottom of the page (bar + system inset).
   static double heightOf(BuildContext context) => barHeight + MediaQuery.paddingOf(context).bottom;
+
+  /// Hidden on the AI chat and whenever the keyboard is open (an input has focus).
+  static bool visibleFor(GRoute r, BuildContext context) => r.panel != Panel.ai && MediaQuery.viewInsetsOf(context).bottom == 0;
 
   static const _tabs = [
     ('landmark', 'होम', '#/dashboard'),
