@@ -59,3 +59,4 @@ key.properties
 *.aab
 /android/app/release/
 test/fixtures/*.whl
+android/build/
