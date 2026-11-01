@@ -110,7 +110,7 @@ void main() {
     });
   });
 
-  testWidgets('menu Topic opens the today sheet; all-topics goes to Topics (320dp × 1.3)', (t) async {
+  testWidgets('menu आज का प्रमाण opens its own page; all-pramans goes to Pramans (320dp × 1.3)', (t) async {
     await t.binding.setSurfaceSize(const Size(320, 640));
     t.platformDispatcher.textScaleFactorTestValue = 1.3;
     addTearDown(t.platformDispatcher.clearTextScaleFactorTestValue);
@@ -119,15 +119,19 @@ void main() {
     await fingerTap(t, find.byWidgetPredicate((w) => w is GIcon && w.name == 'menu'), wobble: Offset.zero);
     await realPause(t);
     await t.pumpAndSettle();
-    final nav = find.byKey(const ValueKey('nav-trending-up'));
+    final nav = find.byKey(const ValueKey('nav-calendar-days'));
+    expect(find.byKey(const ValueKey('nav-trending-up')), findsNothing);
     expect(t.getTopLeft(nav).dy, greaterThan(t.getTopLeft(find.byKey(const ValueKey('nav-highlighter'))).dy));
     await fingerTap(t, nav, wobble: Offset.zero);
     await realPause(t);
     await settle(t);
-    expect(find.byKey(const ValueKey('today-all-topics')), findsOneWidget);
+    expect(AppNav.I.route.legalPage, 'today');
+    expect(find.byKey(const ValueKey('today-page')), findsOneWidget);
     expect(t.takeException(), isNull);
-    await t.tap(find.byKey(const ValueKey('today-all-topics')));
+    await t.ensureVisible(find.byKey(const ValueKey('today-all-pramans')));
     await settle(t);
-    expect(AppNav.I.route.panel, Panel.topics);
+    await t.tap(find.byKey(const ValueKey('today-all-pramans')));
+    await settle(t);
+    expect(AppNav.I.route.panel, Panel.pramans);
   });
 }

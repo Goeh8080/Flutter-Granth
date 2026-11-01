@@ -108,7 +108,7 @@ class _GranthsPanelState extends State<GranthsPanel> with LivePanel {
               ),
             ),
             tools: Tools(
-              grid: GridSwitch(options: const [1, 2, 3], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kGranthCols, v)),
+              grid: GridSwitch(locked: UiPrefs.I.gridLocked('granths'), options: const [1, 2, 3], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kGranthCols, v)),
               search: SearchField(placeholder: 'ग्रंथ का नाम — gita, kabir', initial: _q, onChanged: (v) { Places.setQuery(widget.placeKey, v); setState(() => _q = v); }),
             ),
           ),

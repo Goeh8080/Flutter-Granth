@@ -33,7 +33,7 @@ class LoginGate extends StatefulWidget {
 
   /// Signed-in users (new or already signed in before this update) must accept the current
   /// terms version; a newer `ui.terms.version` asks again.
-  static bool get needsTerms => enabled && FirebaseBridge.I.signedIn && RemoteConfig.I.uiTerms.version > termsAccepted;
+  static bool get needsTerms => enabled && Store.I.persistent && FirebaseBridge.I.signedIn && RemoteConfig.I.uiTerms.version > termsAccepted;
 
   @override
   State<LoginGate> createState() => _LoginGateState();
@@ -47,6 +47,7 @@ class _LoginGateState extends State<LoginGate> {
     super.initState();
     FirebaseBridge.I.addListener(_auth);
     RemoteConfig.I.addListener(_cfg);
+    Store.I.adopted.addListener(_cfg);
   }
 
   void _cfg() {
@@ -57,6 +58,7 @@ class _LoginGateState extends State<LoginGate> {
   void dispose() {
     FirebaseBridge.I.removeListener(_auth);
     RemoteConfig.I.removeListener(_cfg);
+    Store.I.adopted.removeListener(_cfg);
     super.dispose();
   }
 

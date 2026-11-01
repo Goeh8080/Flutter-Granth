@@ -37,7 +37,7 @@ class GRoute {
     if (path.startsWith('/gallery')) return const GRoute(Panel.gallery);
     if (path.startsWith('/ai')) return const GRoute(Panel.ai);
     if (path.startsWith('/legal')) return GRoute(Panel.legal, legalPage: v('p'));
-    for (final p in const ['settings', 'account', 'support']) {
+    for (final p in const ['settings', 'account', 'support', 'today']) {
       if (path.startsWith('/$p')) {
         final s = p == 'settings' ? v('s') : null;
         return GRoute(Panel.page, legalPage: s == null || s.isEmpty ? p : 'settings/$s');

@@ -56,17 +56,20 @@ void _openPraman(Praman p) => AppNav.I.openLink('#/pramans?id=${Uri.encodeCompon
 
 /// Daily praman + trending chips (used on the dashboard and in the "Topic" sheet).
 class TodayCard extends StatelessWidget {
-  const TodayCard({super.key, this.now, this.inSheet = false});
+  const TodayCard({super.key, this.now, this.inSheet = false, this.daily = true, this.trending = true});
   final DateTime Function()? now;
   final bool inSheet;
+
+  /// Round-4: the आज का प्रमाण page shows only the daily praman; the Topics page only the trending chips.
+  final bool daily, trending;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([RemoteConfig.I, CatalogStore.I]),
     builder: (context, _) {
       final s = CatalogStore.I;
-      final p = !RemoteConfig.I.dailyEnabled ? null : dailyPraman(s.pramans, RemoteConfig.I.dailyPraman, (now ?? DateTime.now)());
-      final trend = RemoteConfig.I.trendingEnabled ? trendingTopics(s.topics, RemoteConfig.I.trendingTopics) : const <Topic>[];
+      final p = !daily || !RemoteConfig.I.dailyEnabled ? null : dailyPraman(s.pramans, RemoteConfig.I.dailyPraman, (now ?? DateTime.now)());
+      final trend = trending && RemoteConfig.I.trendingEnabled ? trendingTopics(s.topics, RemoteConfig.I.trendingTopics) : const <Topic>[];
       if (p == null && trend.isEmpty) return const SizedBox.shrink();
       void close() {
         if (inSheet) Navigator.of(context).maybePop();
@@ -128,7 +131,7 @@ class TodayCard extends StatelessWidget {
               ),
             ),
           if (trend.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            if (p != null) const SizedBox(height: 14),
             Row(
               children: [
                 const GIcon('trending-up', size: 16, color: GColors.brown),

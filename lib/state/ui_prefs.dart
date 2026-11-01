@@ -23,7 +23,9 @@ const cardLooks = <(String, String)>[
 /// Like the original (`useState` first, then `localStorage.setItem`), a tap changes the
 /// value on screen at once: reads come from memory, the file write follows.
 class UiPrefs extends ChangeNotifier {
-  UiPrefs._();
+  UiPrefs._() {
+    Store.I.adopted.addListener(refresh);
+  }
   static final UiPrefs I = UiPrefs._();
 
   String get look => Store.I.getString(Store.kLook) ?? 'classic';
@@ -32,27 +34,34 @@ class UiPrefs extends ChangeNotifier {
     notifyListeners();
   }
 
-  int cols(String key, {required List<int> allowed, required int fallback}) {
+  /// Columns of a grid. Priority: admin force › the user's saved choice › admin default › 2.
+  /// The result is always one of [allowed], so the grid button and the layout always match
+  /// (an admin `3` on a 1|2 page is shown as 2, never as an unlabeled third column).
+  int cols(String key, {required List<int> allowed, required int fallback, int? forced}) {
+    int fit(int v) => allowed.contains(v) ? v : allowed.reduce((a, b) => (a - v).abs() <= (b - v).abs() ? a : b);
+    if (forced != null) return fit(forced);
     final n = Store.I.getInt(key);
-    return n != null && allowed.contains(n) ? n : fallback;
+    if (n != null && allowed.contains(n)) return n;
+    return fallback < 1 ? fallback : fit(fallback);
   }
 
   void setCols(String key, int v) {
-    if (cols(key, allowed: const [1, 2, 3], fallback: -1) == v) return;
+    if (Store.I.getInt(key) == v) return;
     Store.I.setString(key, '$v');
     notifyListeners();
   }
 
-  /// Columns of the folder (shelves) and granth grids: the user's own choice (the switch on the
-  /// screen, or settings → layout) always wins; until they choose, the admin's `ui.grid` from the
-  /// signed config; without either, 2.
-  int get granthCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('granths') ?? 2);
+  /// The admin forces this page's grid: the grid button is locked.
+  bool gridLocked(String page) => RemoteConfig.I.gridForced(page) != null;
 
-  /// Folder (shelves) grid: same user choice as the granth grid; admin default `grid_pages.shelves`.
-  int get shelfCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('shelves') ?? 2);
+  /// Folder (shelves) and granth grids: force › the user's choice › admin default › 2.
+  int get granthCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('granths') ?? 2, forced: RemoteConfig.I.gridForced('granths'));
 
-  /// Topic / praman / gallery grids: the user's choice (1|2), else the admin's per-page grid, else 2.
-  int pageCols(String page, String key) => cols(key, allowed: const [1, 2], fallback: RemoteConfig.I.gridFor(page) ?? 2);
+  /// Folder (shelves) grid: same user choice as the granth grid; admin `grid_pages.shelves`.
+  int get shelfCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('shelves') ?? 2, forced: RemoteConfig.I.gridForced('shelves'));
+
+  /// Topic / praman / gallery grids (1|2).
+  int pageCols(String page, String key) => cols(key, allowed: const [1, 2], fallback: RemoteConfig.I.gridFor(page) ?? 2, forced: RemoteConfig.I.gridForced(page));
 
   /// The signed config changed `ui.grid`: grids that still follow the default redraw.
   void remoteChanged() => notifyListeners();

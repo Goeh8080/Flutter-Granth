@@ -307,4 +307,8 @@ class FirebaseBridge extends ChangeNotifier {
 
   @visibleForTesting
   Future<void> debugSetAccount(AccountInfo? a) => _setAccount(a);
+
+  /// For tests: a cold start (the account is read again from the saved settings).
+  @visibleForTesting
+  void debugForgetMemory() => _account = null;
 }

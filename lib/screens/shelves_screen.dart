@@ -290,7 +290,7 @@ class _FolderScreenState extends State<_FolderScreen> with LivePanel {
             leading: group == null ? ReligionSymbol(religion.icon, tone: _tone(religion.tone), size: 44) : GroupIcon(group.icon, size: 44),
             tools: Align(
               alignment: Alignment.centerLeft,
-              child: GridSwitch(options: const [1, 2, 3], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kGranthCols, v)),
+              child: GridSwitch(locked: UiPrefs.I.gridLocked('shelves'), options: const [1, 2, 3], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kGranthCols, v)),
             ),
             title: group?.title ?? religion.title,
             subtitle: group == null ? _count(inside.length, ShelfIndex.pramans(inside)) : '${religion.title} • ${_count(inside.length, ShelfIndex.pramans(inside))}',

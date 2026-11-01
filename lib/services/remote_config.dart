@@ -69,6 +69,7 @@ class ParsedConfig {
     required this.contacts,
     this.uiGrid,
     this.uiGridPages = const {},
+    this.uiGridForce = const {},
     this.uiTaskbar = TaskbarRule.none,
     this.uiTerms = TermsInfo.fallback,
     this.trendingTopics = const [],
@@ -95,6 +96,9 @@ class ParsedConfig {
 
   /// `ui.grid_pages` (page → 1|2|3; pages: granths, shelves, pramans, topics, gallery, dashboard).
   final Map<String, int> uiGridPages;
+
+  /// `ui.grid_pages[page].force` (see [parseGridForce]).
+  final Map<String, int> uiGridForce;
 
   /// `ui.taskbar` (round-3, provisional; see [parseTaskbar]).
   final TaskbarRule uiTaskbar;
@@ -377,6 +381,7 @@ ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kB
       contacts: parseContacts(j['contacts']),
       uiGrid: _parseGrid(_map(j['ui'])),
       uiGridPages: parseGridPages(_map(j['ui'])),
+      uiGridForce: parseGridForce(_map(j['ui'])),
       uiTaskbar: parseTaskbar(_map(j['ui'])),
       uiTerms: parseTerms(_map(j['ui'])),
       trendingTopics: _parseTrending(_map(j['trending'])),
@@ -398,15 +403,32 @@ int? _parseGrid(Map<String, dynamic>? ui) {
 /// Pages the admin can set a grid for in `ui.grid_pages`.
 const kGridPages = {'granths', 'shelves', 'pramans', 'topics', 'gallery', 'dashboard'};
 
-/// `ui.grid_pages`: `{page: 1|2|3}`; unknown pages and non-numbers are dropped, values clamped to 1..3.
-Map<String, int> parseGridPages(Map<String, dynamic>? ui) {
+/// Short names the admin panel may use for a page (`granth` → `granths`, …).
+const _kGridAlias = {'granth': 'granths', 'shelf': 'shelves', 'praman': 'pramans', 'topic': 'topics'};
+
+int? _gridNum(Object? v) => v is num && v.isFinite && v == v.roundToDouble() && v >= 1 && v <= 3 ? v.toInt() : null;
+
+Map<String, int> _gridPagesPart(Map<String, dynamic>? ui, String field) {
   final m = ui?['grid_pages'];
   if (m is! Map) return const {};
-  return {
-    for (final e in m.entries)
-      if (e.key is String && kGridPages.contains(e.key) && e.value is num && const [1, 2, 3].contains(e.value)) e.key as String: (e.value as num).toInt(),
-  };
+  final out = <String, int>{};
+  for (final e in m.entries) {
+    if (e.key is! String) continue;
+    final page = _kGridAlias[e.key] ?? e.key as String;
+    if (!kGridPages.contains(page)) continue;
+    final v = e.value;
+    final n = field == 'default' ? (_gridNum(v) ?? (v is Map ? _gridNum(v['default']) : null)) : (v is Map ? _gridNum(v['force']) : null);
+    if (n != null) out[page] = n;
+  }
+  return out;
 }
+
+/// `ui.grid_pages` defaults: `{page: n}` or `{page: {default: n}}` (n = 1|2|3). Only a default:
+/// the user's own choice wins. Unknown pages and bad values are dropped.
+Map<String, int> parseGridPages(Map<String, dynamic>? ui) => _gridPagesPart(ui, 'default');
+
+/// `ui.grid_pages` forced grids: `{page: {force: n}}` — overrides the user, the grid button is locked.
+Map<String, int> parseGridForce(Map<String, dynamic>? ui) => _gridPagesPart(ui, 'force');
 
 /// `ui.taskbar` as the admin sent it: [force] (the user can not change it) and/or [def]
 /// (used until the user picks on/off in Settings). Both null = not set.
@@ -517,6 +539,9 @@ class RemoteConfig extends ChangeNotifier {
   /// `ui.grid_pages` (see [ParsedConfig.uiGridPages]).
   Map<String, int> uiGridPages = const {};
 
+  /// Pages whose grid the admin forces (overrides the user's choice).
+  Map<String, int> uiGridForce = const {};
+
   /// `ui.taskbar` (see [parseTaskbar]).
   TaskbarRule uiTaskbar = TaskbarRule.none;
 
@@ -525,6 +550,9 @@ class RemoteConfig extends ChangeNotifier {
 
   /// The admin's grid for [page]: `ui.grid_pages[page]`, else `ui.grid`, else null (local default).
   int? gridFor(String page) => uiGridPages[page] ?? uiGrid;
+
+  /// The admin forces [page]'s grid (null = the user may choose).
+  int? gridForced(String page) => uiGridForce[page];
 
   /// Round 14 optional fields (see [ParsedConfig]).
   List<String> trendingTopics = const [];
@@ -631,11 +659,12 @@ class RemoteConfig extends ChangeNotifier {
     aiEndpoint = p.aiEndpoint;
     contactsTitle = p.contactsTitle;
     contacts = p.contacts ?? kSeedContacts;
-    final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages) || uiTaskbar != p.uiTaskbar;
+    final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages) || !mapEquals(uiGridForce, p.uiGridForce) || uiTaskbar != p.uiTaskbar;
     uiTaskbar = p.uiTaskbar;
     uiTerms = p.uiTerms;
     uiGrid = p.uiGrid;
     uiGridPages = p.uiGridPages;
+    uiGridForce = p.uiGridForce;
     trendingTopics = p.trendingTopics;
     dailyPraman = p.dailyPraman;
     Shelves.useRemote(p.structure, p.overrides);
@@ -668,6 +697,7 @@ class RemoteConfig extends ChangeNotifier {
     contacts = kSeedContacts;
     uiGrid = null;
     uiGridPages = const {};
+    uiGridForce = const {};
     uiTaskbar = TaskbarRule.none;
     uiTerms = TermsInfo.fallback;
     trendingTopics = const [];

@@ -12,6 +12,7 @@ import '../state/places.dart';
 import '../state/router.dart';
 import '../state/ui_prefs.dart';
 import '../theme/colors.dart';
+import '../widgets/today_card.dart';
 import '../widgets/common.dart';
 import '../widgets/live_panel.dart';
 import '../widgets/overlays.dart';
@@ -73,13 +74,18 @@ class _TopicsPanelState extends State<TopicsPanel> with LivePanel {
               ),
             ),
             tools: Tools(
-              grid: GridSwitch(options: const [1, 2], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kTopicCols, v)),
+              grid: GridSwitch(locked: UiPrefs.I.gridLocked('topics'), options: const [1, 2], value: cols, onChanged: (v) => UiPrefs.I.setCols(Store.kTopicCols, v)),
               search: SearchField(placeholder: 'विषय खोजें — mans, गीता, मृत्यु', initial: _q, onChanged: (v) { Places.setQuery('topic-list-place', v); setState(() => _q = v); }),
             ),
           ),
         ),
       ),
       const SliverToBoxAdapter(child: SizedBox(height: 18)),
+      // Round-4: trending topics (were in the old "Topic" menu sheet) sit at the top of Topics.
+      if (_q.trim().isEmpty)
+        const SliverToBoxAdapter(
+          child: Padding(padding: EdgeInsets.only(bottom: 16), child: TodayCard(key: ValueKey('topics-trending'), daily: false)),
+        ),
       // Keyed by the column count: switching 1×1 / 2×2 / 3×3 re-lays out the grid and
       // replays the staggered card entry, so the change is visible and animated.
       KeyedSubtree(key: ValueKey('grid-$cols'), child: gridSliver(

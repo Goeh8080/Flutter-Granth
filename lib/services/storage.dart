@@ -22,6 +22,10 @@ class Store {
   /// slow cold start) or cannot be opened at all; they are written through when it is ready.
   final Map<String, Object> _mem = {};
 
+  /// Bumps when the preferences file is opened late (after the first screen was drawn), so
+  /// everything that read a setting before reads it again (grid, terms, text size…).
+  final ValueNotifier<int> adopted = ValueNotifier(0);
+
   static const kTopicCols = 'topic-cols';
   static const kGranthCols = 'granth-cols';
   static const kPramanCols = 'praman-cols';
@@ -111,6 +115,7 @@ class Store {
       if (v is String) p.setString(e.key, v);
       if (v is int) p.setInt(e.key, v);
     }
+    adopted.value++;
   }
 
   /// For tests: use an in-memory prefs instance and a temp directory.

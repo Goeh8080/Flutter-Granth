@@ -158,6 +158,9 @@ void main() {
       Store.I.debugAdoptPrefs(prefs);
       expect(prefs.getString(Store.kGranthCols), '3', reason: 'written once storage is there');
       expect(Store.I.persistent, isTrue);
+      await settle(t, 4);
+      expect(firstRowCards(t), 3, reason: 'still 3 after adoption');
+      await t.pump(const Duration(seconds: 5));
     });
   });
 

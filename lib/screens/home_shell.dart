@@ -23,13 +23,13 @@ import '../widgets/common.dart';
 import '../widgets/pdf_sheets.dart';
 import '../services/firebase_bridge.dart';
 import 'account_screen.dart';
+import 'today_screen.dart';
 import 'dashboard_screen.dart';
 import 'ai_screen.dart';
 import 'gallery_screen.dart';
 import 'shelves_screen.dart';
 import 'pramans_screen.dart';
 import 'topics_screen.dart';
-import '../widgets/today_card.dart';
 
 /// `cg` — the app root: mast, stats bar, hamburger nav, sync strip, panel, to-top, toast.
 class HomeShell extends StatefulWidget {
@@ -242,6 +242,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     Panel.legal => LegalPanel(key: ValueKey('legal-${r.legalPage}'), page: r.legalPage),
     Panel.page => switch (r.legalPage) {
       'account' => const AccountPage(key: ValueKey('page-account')),
+      'today' => const TodayPage(key: ValueKey('page-today')),
       'support' when RemoteConfig.I.supportEnabled => const SupportPage(key: ValueKey('page-support')),
       final String p when p.startsWith('settings/') => SettingsPage(key: ValueKey('page-$p'), section: p.substring(9)),
       _ => const SettingsPage(key: ValueKey('page-settings')),
@@ -538,9 +539,10 @@ class _Mast extends StatelessWidget {
                     ),
                     _MastBtn(icon: 'images', onTap: () => nav.go('#/gallery')),
                     const SizedBox(width: 6),
-                    const _AvatarBtn(),
-                    const SizedBox(width: 6),
                     _MastBtn(icon: 'settings', onTap: () => openSettings(context)),
+                    const SizedBox(width: 6),
+                    // Round-4: account last, at the far right, next to settings.
+                    const _AvatarBtn(),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -753,8 +755,9 @@ class _NavMenu extends StatelessWidget {
     ('sparkles', 'तत्त्व AI से पूछे', '#/ai', Panel.ai),
     // Round 6: opens the Photo Highlighter (its own full-screen page, lib/highlighter/).
     ('highlighter', 'Photo Highlighter', '', null),
-    // Round 14: today's praman + trending topics (a sheet), right below the Photo Highlighter.
-    ('trending-up', 'Topic', '', null),
+    // Round-4: the old "Topic" entry is now आज का प्रमाण — its own page (trending topics moved
+    // to the top of the Topics page).
+    ('calendar-days', 'आज का प्रमाण', '#/today', null),
   ];
 
   @override
@@ -800,8 +803,8 @@ class _NavMenu extends StatelessWidget {
             return;
           }
           if (AppNav.I.menuOpen) AppNav.I.toggleMenu();
-          if (it.$1 == 'trending-up') {
-            openTodaySheet(context);
+          if (it.$1 == 'calendar-days') {
+            AppNav.I.openLink(it.$3);
             return;
           }
           HighlighterLauncher.open(context);
@@ -845,8 +848,7 @@ class _NavMenu extends StatelessWidget {
   }
 }
 
-/// Bottom tab bar. The 3rd tab is the profile: the Google photo as a round avatar
-/// (person icon when signed out) and it opens the existing अकाउंट page.
+/// Bottom tab bar. Round-4: the 3rd (centre) tab asks तत्त्व AI; the account is the top-bar avatar.
 class BottomTabs extends StatelessWidget {
   const BottomTabs({super.key, required this.route});
   final GRoute route;
@@ -867,7 +869,7 @@ class BottomTabs extends StatelessWidget {
   static const _tabs = [
     ('landmark', 'होम', '#/dashboard'),
     ('clipboard-list', 'विषय', '#/topics'),
-    ('', 'प्रोफ़ाइल', '#/account'),
+    ('sparkles', 'तत्त्व AI', '#/ai'),
     ('library', 'ग्रंथ सूची', '#/granths'),
     ('image', 'प्रमाण सूची', '#/pramans'),
   ];
@@ -875,7 +877,7 @@ class BottomTabs extends StatelessWidget {
   bool _active(int i) => switch (i) {
     0 => route.panel == Panel.dashboard,
     1 => route.panel == Panel.topics,
-    2 => route.panel == Panel.page && route.legalPage == 'account',
+    2 => route.panel == Panel.ai,
     3 => route.panel == Panel.granths,
     _ => route.panel == Panel.pramans,
   };
@@ -907,24 +909,14 @@ class BottomTabs extends StatelessWidget {
     final t = _tabs[i];
     final active = _active(i);
     final color = active ? GColors.maroon : GColors.muted;
+    // Round-4: the centre slot asks तत्त्व AI (opened as a link, so Back returns here).
     final Widget icon = i == 2
-        ? ListenableBuilder(
-            listenable: FirebaseBridge.I,
-            builder: (context, _) {
-              final a = FirebaseBridge.I.account;
-              return Container(
-                key: const ValueKey('tab-profile-avatar'),
-                width: 28,
-                height: 28,
-                padding: const EdgeInsets.all(1.5),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: active ? GColors.maroon : GColors.gold.withValues(alpha: 0.6), width: 1.5),
-                ),
-                // Photo only; no photo (or signed out) shows the person icon.
-                child: AccountAvatar(url: a?.photo ?? '', name: '', size: 22),
-              );
-            },
+        ? Container(
+            key: const ValueKey('tab-ai'),
+            width: 30,
+            height: 30,
+            decoration: const BoxDecoration(shape: BoxShape.circle, gradient: LinearGradient(colors: [GColors.saffron, GColors.maroon])),
+            child: const Center(child: GIcon('sparkles', size: 17, color: GColors.paper)),
           )
         : GIcon(t.$1, size: 20, color: color);
     return Semantics(
@@ -935,7 +927,12 @@ class BottomTabs extends StatelessWidget {
         key: ValueKey('tab-$i'),
         onTap: () {
           if (AppNav.I.menuOpen) AppNav.I.toggleMenu();
-          if (!active) AppNav.I.go(t.$3);
+          if (active) return;
+          if (i == 2) {
+            AppNav.I.openLink(t.$3);
+          } else {
+            AppNav.I.go(t.$3);
+          }
         },
         scale: 0.94,
         child: AnimatedContainer(
