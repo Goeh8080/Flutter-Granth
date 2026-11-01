@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../services/firebase_bridge.dart';
+import '../services/file_actions.dart';
 import '../services/native_bridge.dart';
+import '../services/remote_config.dart';
 import '../services/storage.dart';
 import '../state/toast.dart';
 import '../theme/colors.dart';
@@ -25,6 +27,14 @@ class LoginGate extends StatefulWidget {
   static bool get seen => Store.I.getString(Store.kLoginSeen) == '1';
   static void markSeen() => Store.I.setString(Store.kLoginSeen, '1');
 
+  /// Round-3: the terms version accepted on this device (0 = never).
+  static int get termsAccepted => int.tryParse(Store.I.getString(Store.kTermsAccepted) ?? '') ?? 0;
+  static void acceptTerms(int v) => Store.I.setString(Store.kTermsAccepted, '$v');
+
+  /// Signed-in users (new or already signed in before this update) must accept the current
+  /// terms version; a newer `ui.terms.version` asks again.
+  static bool get needsTerms => enabled && FirebaseBridge.I.signedIn && RemoteConfig.I.uiTerms.version > termsAccepted;
+
   @override
   State<LoginGate> createState() => _LoginGateState();
 }
@@ -36,16 +46,26 @@ class _LoginGateState extends State<LoginGate> {
   void initState() {
     super.initState();
     FirebaseBridge.I.addListener(_auth);
+    RemoteConfig.I.addListener(_cfg);
+  }
+
+  void _cfg() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     FirebaseBridge.I.removeListener(_auth);
+    RemoteConfig.I.removeListener(_cfg);
     super.dispose();
   }
 
   void _auth() {
-    if (_show && FirebaseBridge.I.signedIn) _done();
+    if (_show && FirebaseBridge.I.signedIn) {
+      _done();
+    } else if (mounted) {
+      setState(() {});
+    }
   }
 
   void _done() {
@@ -56,7 +76,18 @@ class _LoginGateState extends State<LoginGate> {
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
     duration: const Duration(milliseconds: 320),
-    child: _show ? LoginPage(key: const ValueKey('login-page'), onSkip: _done) : KeyedSubtree(key: const ValueKey('login-passed'), child: widget.child),
+    child: _show
+        ? LoginPage(key: const ValueKey('login-page'), onSkip: _done)
+        : LoginGate.needsTerms
+        ? TermsPage(
+            key: const ValueKey('terms-page'),
+            terms: RemoteConfig.I.uiTerms,
+            onAccept: () {
+              LoginGate.acceptTerms(RemoteConfig.I.uiTerms.version);
+              setState(() {});
+            },
+          )
+        : KeyedSubtree(key: const ValueKey('login-passed'), child: widget.child),
   );
 }
 
@@ -184,6 +215,122 @@ class LoginPage extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Round-3: the terms page, shown after Google login and before the app. No skip; Back is the
+/// same as on the login page (it leaves the app).
+class TermsPage extends StatelessWidget {
+  const TermsPage({super.key, required this.terms, required this.onAccept});
+  final TermsInfo terms;
+  final VoidCallback onAccept;
+
+  static const points = [
+    'ग्रंथ प्रबंधन सत ग्रंथों के प्रमाण पढ़ने और साझा करने के लिए है; इसे सम्मान से इस्तेमाल करें।',
+    'प्रमाण, चित्र और PDF सिर्फ़ निजी अध्ययन और प्रचार के लिए हैं; उन्हें बदलकर गलत रूप में न फैलाएँ।',
+    'लॉगिन से आपका नाम, Gmail और ऐप के आँकड़े आपके अकाउंट में रखे जाते हैं; पासवर्ड हम कभी नहीं देखते।',
+    'नियम बदलने पर ऐप आपसे दोबारा स्वीकृति माँगेगा।',
+  ];
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) NativeBridge.exitApp().catchError((Object _) => SystemNavigator.pop());
+    },
+    child: Scaffold(
+      backgroundColor: GColors.cream,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFFFFF7EA), GColors.cream]),
+        ),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Center(child: LogoIcon(size: 72)),
+                      const SizedBox(height: 18),
+                      Text('नियम और शर्तें', textAlign: TextAlign.center, style: GText.display(size: 28, color: GColors.maroon)),
+                      const SizedBox(height: 4),
+                      Text('Terms & Conditions', textAlign: TextAlign.center, style: GText.sans(size: 13, color: GColors.muted)),
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: GColors.paper,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: GColors.gold.withValues(alpha: 0.4)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('आगे बढ़ने से पहले संक्षेप में:', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.brown)),
+                            const SizedBox(height: 10),
+                            for (final p in points)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('•  ', style: GText.sans(size: 14, color: GColors.maroon)),
+                                    Expanded(child: Text(p, style: GText.sans(size: 14, color: GColors.text, height: 1.45))),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: TextButton(
+                          key: const ValueKey('terms-link'),
+                          onPressed: () => FileActions.openUrl(terms.url).catchError((Object _) {}),
+                          child: Text(
+                            'पूरे नियम पढ़ें (वेबसाइट पर)',
+                            style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 6, 24, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      '"स्वीकार करें" दबाकर आप इन नियमों (संस्करण ${terms.version}) से सहमत होते हैं।',
+                      textAlign: TextAlign.center,
+                      style: GText.sans(size: 12.5, color: GColors.muted, height: 1.4),
+                    ),
+                    const SizedBox(height: 10),
+                    FilledButton(
+                      key: const ValueKey('terms-accept'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: GColors.maroon,
+                        foregroundColor: GColors.paper,
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                      ),
+                      onPressed: onAccept,
+                      child: Text('स्वीकार करें', style: GText.sans(size: 16, weight: FontWeight.w700, color: GColors.paper)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

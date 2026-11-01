@@ -70,6 +70,7 @@ class ParsedConfig {
     this.uiGrid,
     this.uiGridPages = const {},
     this.uiTaskbar = TaskbarRule.none,
+    this.uiTerms = TermsInfo.fallback,
     this.trendingTopics = const [],
     this.dailyPraman,
   });
@@ -97,6 +98,9 @@ class ParsedConfig {
 
   /// `ui.taskbar` (round-3, provisional; see [parseTaskbar]).
   final TaskbarRule uiTaskbar;
+
+  /// `ui.terms {url, version}` (round-3; see [parseTerms]).
+  final TermsInfo uiTerms;
 
   /// `trending.topic_ids` (round 14, optional): topic ids to show as "चर्चित विषय"; empty = hidden.
   final List<String> trendingTopics;
@@ -374,6 +378,7 @@ ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kB
       uiGrid: _parseGrid(_map(j['ui'])),
       uiGridPages: parseGridPages(_map(j['ui'])),
       uiTaskbar: parseTaskbar(_map(j['ui'])),
+      uiTerms: parseTerms(_map(j['ui'])),
       trendingTopics: _parseTrending(_map(j['trending'])),
       dailyPraman: _parseDaily(_map(j['daily_praman'])),
     );
@@ -435,6 +440,32 @@ TaskbarRule parseTaskbar(Map<String, dynamic>? ui) {
   return TaskbarRule.none;
 }
 
+/// `ui.terms`: the full terms page and its version. Missing/invalid parts fall back to
+/// [kTermsUrl] / 1 (only https URLs are taken; the version is a whole number ≥ 1).
+@immutable
+class TermsInfo {
+  const TermsInfo(this.url, this.version);
+  final String url;
+  final int version;
+  static const fallback = TermsInfo(kTermsUrl, 1);
+  @override
+  bool operator ==(Object other) => other is TermsInfo && other.url == url && other.version == version;
+  @override
+  int get hashCode => Object.hash(url, version);
+}
+
+const kTermsUrl = 'https://granth-management.web.app/terms';
+
+TermsInfo parseTerms(Map<String, dynamic>? ui) {
+  final t = ui?['terms'];
+  if (t is! Map) return TermsInfo.fallback;
+  final u = t['url'], v = t['version'];
+  final uri = u is String ? Uri.tryParse(u.trim()) : null;
+  final url = uri != null && uri.scheme == 'https' && uri.host.isNotEmpty ? u.toString().trim() : kTermsUrl;
+  final ver = v is num && v.isFinite && v >= 1 ? v.floor() : (v is String ? (int.tryParse(v.trim()) ?? 1).clamp(1, 1 << 30) : 1);
+  return TermsInfo(url, ver);
+}
+
 /// The bar is on: admin force › the user's choice › admin default › off.
 bool resolveTaskbar(TaskbarRule r, bool? local) => r.force ?? local ?? r.def ?? false;
 
@@ -483,6 +514,9 @@ class RemoteConfig extends ChangeNotifier {
 
   /// `ui.taskbar` (see [parseTaskbar]).
   TaskbarRule uiTaskbar = TaskbarRule.none;
+
+  /// `ui.terms` (see [parseTerms]).
+  TermsInfo uiTerms = TermsInfo.fallback;
 
   /// The admin's grid for [page]: `ui.grid_pages[page]`, else `ui.grid`, else null (local default).
   int? gridFor(String page) => uiGridPages[page] ?? uiGrid;
@@ -594,6 +628,7 @@ class RemoteConfig extends ChangeNotifier {
     contacts = p.contacts ?? kSeedContacts;
     final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages) || uiTaskbar != p.uiTaskbar;
     uiTaskbar = p.uiTaskbar;
+    uiTerms = p.uiTerms;
     uiGrid = p.uiGrid;
     uiGridPages = p.uiGridPages;
     trendingTopics = p.trendingTopics;
@@ -629,6 +664,7 @@ class RemoteConfig extends ChangeNotifier {
     uiGrid = null;
     uiGridPages = const {};
     uiTaskbar = TaskbarRule.none;
+    uiTerms = TermsInfo.fallback;
     trendingTopics = const [];
     dailyPraman = null;
     lastResult = 'none';

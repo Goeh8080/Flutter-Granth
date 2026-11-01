@@ -45,6 +45,7 @@ class DataCompat {
     Store.kHash, Store.kOfflineIds, Store.kDevice, Store.kNotifAsked, Store.kNotifHint,
     Store.kAnimations,
     Store.kTaskbar,
+    Store.kTermsAccepted,
   ];
 
   /// Keys older builds wrote that nothing reads any more (round 9 removed the "सारे ग्रंथ ऑफलाइन"

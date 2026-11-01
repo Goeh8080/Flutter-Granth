@@ -69,6 +69,7 @@ void main() {
   testWidgets('Login page: signed-in users skip it', (t) async {
     LoginGate.enabled = true;
     await FirebaseBridge.I.debugSetAccount(const AccountInfo(email: 'a@gmail.com', name: 'A'));
+    LoginGate.acceptTerms(1);
     await t.pumpWidget(const GranthApp(splash: false, links: false));
     await settle(t);
     expect(find.byKey(const ValueKey('login-page')), findsNothing);
