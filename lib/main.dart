@@ -12,6 +12,7 @@ import 'services/catalog_store.dart';
 import 'services/device_profile.dart';
 import 'services/file_actions.dart';
 import 'services/analytics.dart';
+import 'services/presence.dart';
 import 'services/firebase_bridge.dart';
 import 'services/remote_config.dart';
 import 'services/shelves.dart';
@@ -76,7 +77,10 @@ void main() {
       unawaited(FirebaseBridge.I.init().then((_) => Analytics.forward?.call('app_open', const {})).catchError((Object e) => debugPrint('init: firebase: $e')));
       runApp(GranthApp(ready: boot));
       // Anonymous usage counts start after the first frame; they never delay the app.
-      WidgetsBinding.instance.addPostFrameCallback((_) => Analytics.I.start());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Analytics.I.start();
+        Presence.I.start(); // CONTRACT §19.1 live presence
+      });
     },
     (error, stack) {
       debugPrint('Uncaught: $error\n$stack');

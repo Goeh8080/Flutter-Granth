@@ -64,6 +64,16 @@ class FirebaseBridge extends ChangeNotifier {
   AccountInfo? get account => _account ??= AccountInfo.fromJson(_decode(Store.I.getString(kAccount)));
   bool get signedIn => account != null;
 
+  /// The Firebase uid while signed in (for presence); null when signed out or Firebase is off.
+  String? get uid {
+    if (!signedIn || !ready) return null;
+    try {
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Object? _decode(String? s) {
     try {
       return s == null ? null : jsonDecode(s);

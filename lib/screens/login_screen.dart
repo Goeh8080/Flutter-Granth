@@ -86,6 +86,7 @@ class _LoginGateState extends State<LoginGate> {
               LoginGate.acceptTerms(RemoteConfig.I.uiTerms.version);
               setState(() {});
             },
+            onDecline: () => FirebaseBridge.I.signOut(),
           )
         : KeyedSubtree(key: const ValueKey('login-passed'), child: widget.child),
   );
@@ -225,15 +226,16 @@ class LoginPage extends StatelessWidget {
 /// Round-3: the terms page, shown after Google login and before the app. No skip; Back is the
 /// same as on the login page (it leaves the app).
 class TermsPage extends StatelessWidget {
-  const TermsPage({super.key, required this.terms, required this.onAccept});
+  const TermsPage({super.key, required this.terms, required this.onAccept, required this.onDecline});
   final TermsInfo terms;
-  final VoidCallback onAccept;
+  final VoidCallback onAccept, onDecline;
 
+  /// A faithful short form of the Hindi terms (granth-management.web.app/terms, version 1).
   static const points = [
-    'ग्रंथ प्रबंधन सत ग्रंथों के प्रमाण पढ़ने और साझा करने के लिए है; इसे सम्मान से इस्तेमाल करें।',
-    'प्रमाण, चित्र और PDF सिर्फ़ निजी अध्ययन और प्रचार के लिए हैं; उन्हें बदलकर गलत रूप में न फैलाएँ।',
-    'लॉगिन से आपका नाम, Gmail और ऐप के आँकड़े आपके अकाउंट में रखे जाते हैं; पासवर्ड हम कभी नहीं देखते।',
-    'नियम बदलने पर ऐप आपसे दोबारा स्वीकृति माँगेगा।',
+    'ऐप की सामग्री केवल व्यक्तिगत, अध्ययन व धार्मिक उपयोग के लिए है; इसे बेचना या गलत रूप में प्रस्तुत करना मना है।',
+    'Google से लॉगिन वैकल्पिक है; अपने खाते की सुरक्षा आपकी ज़िम्मेदारी है।',
+    'AI के जवाब स्वचालित हैं और गलत हो सकते हैं; मूल ग्रंथ/प्रमाण से जाँच करें। AI से अवैध, अपमानजनक या हानिकारक प्रश्न न पूछें।',
+    'ऐप "जैसा है" दिया जाता है; सेवा कभी भी बदली या बंद की जा सकती है। दुरुपयोग पर पहुँच रोकी जा सकती है, और शर्तें बदलने पर ऐप दोबारा सहमति माँग सकता है।',
   ];
 
   @override
@@ -291,15 +293,20 @@ class TermsPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Center(
-                        child: TextButton(
-                          key: const ValueKey('terms-link'),
-                          onPressed: () => FileActions.openUrl(terms.url).catchError((Object _) {}),
-                          child: Text(
-                            'पूरे नियम पढ़ें (वेबसाइट पर)',
-                            style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          TextButton(
+                            key: const ValueKey('terms-link'),
+                            onPressed: () => FileActions.openUrl(terms.url).catchError((Object _) {}),
+                            child: Text('पूरे नियम पढ़ें', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline)),
                           ),
-                        ),
+                          TextButton(
+                            key: const ValueKey('privacy-link'),
+                            onPressed: () => FileActions.openUrl(terms.privacyUrl).catchError((Object _) {}),
+                            child: Text('गोपनीयता नीति', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -326,6 +333,12 @@ class TermsPage extends StatelessWidget {
                       ),
                       onPressed: onAccept,
                       child: Text('स्वीकार करें', style: GText.sans(size: 16, weight: FontWeight.w700, color: GColors.paper)),
+                    ),
+                    const SizedBox(height: 4),
+                    TextButton(
+                      key: const ValueKey('terms-decline'),
+                      onPressed: onDecline,
+                      child: Text('अस्वीकार (लॉगआउट करें)', style: GText.sans(size: 14, weight: FontWeight.w600, color: GColors.muted)),
                     ),
                   ],
                 ),

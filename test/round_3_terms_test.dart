@@ -87,6 +87,9 @@ void main() {
     expect(parseTerms({'terms': {'url': 'javascript:alert(1)', 'version': 0}}), TermsInfo.fallback);
     expect(parseTerms({'terms': {'version': '2'}}).version, 2);
     expect(parseTerms({'terms': 'bad'}), TermsInfo.fallback);
+    expect(TermsInfo.fallback.privacyUrl, 'https://granth-management.web.app/privacy');
+    expect(parseTerms({'terms': {'url': 'https://a.org/t', 'privacy_url': 'https://a.org/p', 'version': 1}}).privacyUrl, 'https://a.org/p');
+    expect(parseTerms({'terms': {'privacy_url': 'http://insecure/p'}}).privacyUrl, kPrivacyUrl);
   });
 
   testWidgets('already signed in: terms shown once; accept is stored; not shown again', (t) async {
@@ -95,6 +98,8 @@ void main() {
     expect(find.byKey(const ValueKey('terms-page')), findsOneWidget);
     expect(find.text('स्वीकार करें'), findsOneWidget);
     expect(find.byKey(const ValueKey('terms-link')), findsOneWidget);
+    expect(find.byKey(const ValueKey('privacy-link')), findsOneWidget);
+    expect(find.byKey(const ValueKey('terms-decline')), findsOneWidget);
     await t.tap(find.byKey(const ValueKey('terms-accept')));
     await settle(t);
     expect(find.byKey(const ValueKey('terms-page')), findsNothing);
@@ -139,4 +144,14 @@ void main() {
       if (w == 412) await snap(t, key, 'round3_terms.png');
     });
   }
+
+  testWidgets('अस्वीकार signs the user out and nothing is stored', (t) async {
+    await signIn();
+    await boot(t);
+    await t.tap(find.byKey(const ValueKey('terms-decline')));
+    await settle(t);
+    expect(FirebaseBridge.I.signedIn, isFalse);
+    expect(find.byKey(const ValueKey('terms-page')), findsNothing);
+    expect(Store.I.getString(Store.kTermsAccepted), isNull);
+  });
 }

@@ -127,6 +127,13 @@ void main() {
     RemoteConfig.I.uiTaskbar = const TaskbarRule(force: true);
     await boot(t);
     expect(find.byKey(const ValueKey('bottom-tabs')), findsOneWidget);
+    AppNav.I.go('#/settings?s=display');
+    await settle(t, 8);
+    final label = find.textContaining('एडमिन द्वारा नियंत्रित (Managed by admin)');
+    await t.scrollUntilVisible(label, 200, scrollable: find.byType(Scrollable).first);
+    await t.tap(find.byKey(const ValueKey('set-taskbar-off')));
+    await settle(t, 4);
+    expect(UiPrefs.I.taskbar, isTrue); // locked
     AppNav.I.go('#/ai');
     await settle(t, 6);
     expect(find.byKey(const ValueKey('bottom-tabs')), findsNothing);

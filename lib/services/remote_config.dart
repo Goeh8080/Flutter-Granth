@@ -444,26 +444,31 @@ TaskbarRule parseTaskbar(Map<String, dynamic>? ui) {
 /// [kTermsUrl] / 1 (only https URLs are taken; the version is a whole number ≥ 1).
 @immutable
 class TermsInfo {
-  const TermsInfo(this.url, this.version);
-  final String url;
+  const TermsInfo(this.url, this.version, [this.privacyUrl = kPrivacyUrl]);
+  final String url, privacyUrl;
   final int version;
   static const fallback = TermsInfo(kTermsUrl, 1);
   @override
-  bool operator ==(Object other) => other is TermsInfo && other.url == url && other.version == version;
+  bool operator ==(Object other) => other is TermsInfo && other.url == url && other.privacyUrl == privacyUrl && other.version == version;
   @override
-  int get hashCode => Object.hash(url, version);
+  int get hashCode => Object.hash(url, privacyUrl, version);
 }
 
 const kTermsUrl = 'https://granth-management.web.app/terms';
+const kPrivacyUrl = 'https://granth-management.web.app/privacy';
 
 TermsInfo parseTerms(Map<String, dynamic>? ui) {
   final t = ui?['terms'];
   if (t is! Map) return TermsInfo.fallback;
-  final u = t['url'], v = t['version'];
-  final uri = u is String ? Uri.tryParse(u.trim()) : null;
-  final url = uri != null && uri.scheme == 'https' && uri.host.isNotEmpty ? u.toString().trim() : kTermsUrl;
+  String https(Object? u, String fb) {
+    final uri = u is String ? Uri.tryParse(u.trim()) : null;
+    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty ? (u as String).trim() : fb;
+  }
+
+  final v = t['version'];
+  final url = https(t['url'], kTermsUrl);
   final ver = v is num && v.isFinite && v >= 1 ? v.floor() : (v is String ? (int.tryParse(v.trim()) ?? 1).clamp(1, 1 << 30) : 1);
-  return TermsInfo(url, ver);
+  return TermsInfo(url, ver, https(t['privacy_url'], kPrivacyUrl));
 }
 
 /// The bar is on: admin force › the user's choice › admin default › off.

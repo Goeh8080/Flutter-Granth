@@ -787,7 +787,7 @@ class _SettingsState extends State<_Settings> {
                     ),
                   ),
                 ]),
-                _block(UiPrefs.I.taskbarForced ? 'नीचे की टैब पट्टी (एडमिन ने तय की)' : 'नीचे की टैब पट्टी', [
+                _block(UiPrefs.I.taskbarForced ? 'नीचे की टैब पट्टी · एडमिन द्वारा नियंत्रित (Managed by admin)' : 'नीचे की टैब पट्टी', [
                   Pill(
                     key: const ValueKey('set-taskbar-on'),
                     direct: true,
