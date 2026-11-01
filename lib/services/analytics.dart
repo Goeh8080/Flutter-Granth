@@ -11,7 +11,9 @@ import '../config.dart';
 import '../models/structure.dart' show kOtherId;
 import '../state/router.dart';
 import 'device_profile.dart';
+import 'catalog_store.dart';
 import 'remote_config.dart';
+import 'shelves.dart';
 import 'local_stats.dart';
 import 'storage.dart';
 
@@ -78,7 +80,7 @@ class Analytics with WidgetsBindingObserver {
 
   /// Firebase `logScreenView(screenName)` (GA4 screen_view).
   static void Function(String screen)? screenForward;
-  static const namedEvents = {'folder_open', 'granth_open', 'ai_answer', 'ai_fail', 'pdf_download', 'app_open'};
+  static const namedEvents = {'folder_open', 'granth_open', 'topic_open', 'praman_open', 'ai_answer', 'ai_fail', 'pdf_download', 'app_open'};
 
   /// Firebase Analytics only (primary source): mirrors every /events counter as an event.
   /// String values only; never throws into the app.
@@ -97,18 +99,23 @@ class Analytics with WidgetsBindingObserver {
   static String? firebaseIdParam(String name) => switch (name) {
     'folder_open' => 'folder_id',
     'granth_open' || 'pdf_download' => 'granth_id',
+    'topic_open' => 'topic_id',
+    'praman_open' => 'praman_id',
     _ => null,
   };
 
   /// Counts a named event for `/events` and forwards it to Firebase Analytics.
-  void named(String name, {String? id, String? text, String? reason}) {
+  /// [extra] (e.g. praman_open's `granth_id`/`folder_id`) goes to Firebase and, for `folder_id`,
+  /// into the /events entry as well (unknown fields are ignored by older servers).
+  void named(String name, {String? id, String? text, String? reason, Map<String, String?> extra = const {}}) {
     try {
       // Firebase Analytics is primary; app_open is logged automatically there.
-      fb(name, {?firebaseIdParam(name): id, if (name == 'ai_fail') 'question': text, 'reason': reason});
+      fb(name, {?firebaseIdParam(name): id, ...extra, if (name == 'ai_fail') 'question': text, 'reason': reason});
     } catch (_) {}
     if (!enabled) return;
     _rollDay();
-    final k = '$name|${id ?? ''}';
+    final folder = extra['folder_id'];
+    final k = '$name|${id ?? ''}${folder == null || folder.isEmpty ? '' : '|$folder'}';
     if (_named.containsKey(k) || _named.length < 50) _named[k] = math.min(1000, (_named[k] ?? 0) + 1);
     if (name == 'ai_fail' && text != null && _fails.length < 3) {
       _fails.add({'name': 'ai_fail', 'text': _cut(text, 500), if (reason != null) 'reason': _cut(reason, 120)});
@@ -210,24 +217,54 @@ class Analytics with WidgetsBindingObserver {
       _segGranth = r.granthId;
       _segFolder = r.religionId == null || r.groupId == null ? null : [r.religionId, r.groupId, r.subId].nonNulls.join('/');
       if (r.religionId == kOtherId) _segFolder = kOtherId;
+      // Every entry into a folder counts (also when the route opens a granth inside it), but
+      // moving between pramans/granths inside the same folder is not a new folder open.
+      final newFolder = _segFolder != null && (r.granthId == null || _segFolder != _prevFolder);
+      _prevFolder = _segFolder;
+      // Firebase (GA4) is the primary source: named()/fb() forward even when /events is off.
+      if (newFolder) named('folder_open', id: _segFolder);
+      if (r.granthId != null) named('granth_open', id: r.granthId);
+      if (r.topicId != null) named('topic_open', id: r.topicId);
+      if (r.pramanId != null) {
+        final gid = r.granthId ?? granthOfPraman(r.pramanId!);
+        named('praman_open', id: r.pramanId, extra: {'granth_id': gid, 'folder_id': _segFolder ?? folderOfGranth(gid)});
+      }
+      try {
+        screenForward?.call(_scr);
+      } catch (_) {}
       if (!enabled) return;
       _rollDay();
       if (r.granthId != null) _bump(_openG, r.granthId!);
       if (_segFolder != null) _bump(_openF, _segFolder!);
-      if (r.granthId != null) named('granth_open', id: r.granthId);
-      if (_segFolder != null && r.granthId == null) named('folder_open', id: _segFolder);
-      if (r.topicId != null) _bump(_openT, 't');
-      if (r.pramanId != null) _bump(_openP, 'p');
-      try {
-        screenForward?.call(_scr);
-      } catch (_) {}
-      if (r.topicId != null) fb('topic_open', {'topic_id': r.topicId});
-      if (r.pramanId != null) fb('praman_open', {'granth_id': r.granthId, 'praman_id': r.pramanId});
+      if (r.topicId != null) _bump(_openT, r.topicId!);
+      if (r.pramanId != null) _bump(_openP, r.pramanId!);
       if (_segStart == null && _foreground) _segStart = _now();
     } catch (e) {
       debugPrint('analytics: nav: $e');
     }
   }
+
+  String? _prevFolder;
+
+  /// Overridable in tests. The granth of a praman (catalog lookup), or null.
+  static String? Function(String pramanId) granthOfPraman = (id) {
+    try {
+      for (final p in CatalogStore.I.pramans) {
+        if (p.id == id) return p.granthId.isEmpty ? null : p.granthId;
+      }
+    } catch (_) {}
+    return null;
+  };
+
+  /// Overridable in tests. The folder (leaf key, or अन्य) a granth is placed in, or null.
+  static String? Function(String? granthId) folderOfGranth = (gid) {
+    if (gid == null) return null;
+    try {
+      return Shelves.indexFor(CatalogStore.I.granths).placements[gid]?.key;
+    } catch (_) {
+      return null;
+    }
+  };
 
   static String screenName(GRoute r) => switch (r.panel) {
     Panel.dashboard => 'home',
@@ -387,7 +424,9 @@ class Analytics with WidgetsBindingObserver {
     'ai': {'asked': _aiAsked, 'answered': _aiAnswered, 'cite_tap': _aiCite},
     if (_named.isNotEmpty || _fails.isNotEmpty)
       'events': [
-        for (final e in _named.entries) {'name': e.key.split('|').first, if (e.key.split('|').last.isNotEmpty) 'id': e.key.substring(e.key.indexOf('|') + 1), 'n': e.value},
+        for (final e in _named.entries)
+          if (e.key.split('|') case [final name, final id, ...final rest])
+            {'name': name, if (id.isNotEmpty) 'id': id, if (rest.isNotEmpty) 'folder_id': rest.join('|'), 'n': e.value},
         ..._fails,
       ],
   };
@@ -530,6 +569,7 @@ class Analytics with WidgetsBindingObserver {
     _day = '';
     _segStart = null;
     _lastRouteKey = '';
+    _prevFolder = null;
     _iid = null;
   }
 }
