@@ -69,6 +69,7 @@ class ParsedConfig {
     required this.contacts,
     this.uiGrid,
     this.uiGridPages = const {},
+    this.uiTaskbar = TaskbarRule.none,
     this.trendingTopics = const [],
     this.dailyPraman,
   });
@@ -93,6 +94,9 @@ class ParsedConfig {
 
   /// `ui.grid_pages` (page → 1|2|3; pages: granths, shelves, pramans, topics, gallery, dashboard).
   final Map<String, int> uiGridPages;
+
+  /// `ui.taskbar` (round-3, provisional; see [parseTaskbar]).
+  final TaskbarRule uiTaskbar;
 
   /// `trending.topic_ids` (round 14, optional): topic ids to show as "चर्चित विषय"; empty = hidden.
   final List<String> trendingTopics;
@@ -369,6 +373,7 @@ ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kB
       contacts: parseContacts(j['contacts']),
       uiGrid: _parseGrid(_map(j['ui'])),
       uiGridPages: parseGridPages(_map(j['ui'])),
+      uiTaskbar: parseTaskbar(_map(j['ui'])),
       trendingTopics: _parseTrending(_map(j['trending'])),
       dailyPraman: _parseDaily(_map(j['daily_praman'])),
     );
@@ -397,6 +402,41 @@ Map<String, int> parseGridPages(Map<String, dynamic>? ui) {
       if (e.key is String && kGridPages.contains(e.key) && e.value is num && const [1, 2, 3].contains(e.value)) e.key as String: (e.value as num).toInt(),
   };
 }
+
+/// `ui.taskbar` as the admin sent it: [force] (the user can not change it) and/or [def]
+/// (used until the user picks on/off in Settings). Both null = not set.
+@immutable
+class TaskbarRule {
+  const TaskbarRule({this.force, this.def});
+  final bool? force, def;
+  static const none = TaskbarRule();
+  @override
+  bool operator ==(Object other) => other is TaskbarRule && other.force == force && other.def == def;
+  @override
+  int get hashCode => Object.hash(force, def);
+}
+
+/// Defensive reading of `ui.taskbar` until the contract names it:
+/// * `true` / `false` → the default (the user's own Settings choice still wins);
+/// * `{force: bool}` → forced on/off, the Settings toggle is locked;
+/// * `{enabled: false}` → forced off (the admin switched the feature off);
+///   `{enabled: true}` → allowed, default on unless `default` says otherwise;
+/// * `{default: bool}` → the default;
+/// * anything else (strings, numbers, null) → not set.
+TaskbarRule parseTaskbar(Map<String, dynamic>? ui) {
+  final v = ui?['taskbar'];
+  if (v is bool) return TaskbarRule(def: v);
+  if (v is! Map) return TaskbarRule.none;
+  final force = v['force'], enabled = v['enabled'], def = v['default'];
+  if (force is bool) return TaskbarRule(force: force);
+  if (enabled == false) return const TaskbarRule(force: false);
+  if (def is bool) return TaskbarRule(def: def);
+  if (enabled == true) return const TaskbarRule(def: true);
+  return TaskbarRule.none;
+}
+
+/// The bar is on: admin force › the user's choice › admin default › off.
+bool resolveTaskbar(TaskbarRule r, bool? local) => r.force ?? local ?? r.def ?? false;
 
 String _normEtag(String? e) => (e ?? '').trim().replaceFirst(RegExp(r'^W/'), '');
 
@@ -440,6 +480,9 @@ class RemoteConfig extends ChangeNotifier {
 
   /// `ui.grid_pages` (see [ParsedConfig.uiGridPages]).
   Map<String, int> uiGridPages = const {};
+
+  /// `ui.taskbar` (see [parseTaskbar]).
+  TaskbarRule uiTaskbar = TaskbarRule.none;
 
   /// The admin's grid for [page]: `ui.grid_pages[page]`, else `ui.grid`, else null (local default).
   int? gridFor(String page) => uiGridPages[page] ?? uiGrid;
@@ -549,7 +592,8 @@ class RemoteConfig extends ChangeNotifier {
     aiEndpoint = p.aiEndpoint;
     contactsTitle = p.contactsTitle;
     contacts = p.contacts ?? kSeedContacts;
-    final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages);
+    final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages) || uiTaskbar != p.uiTaskbar;
+    uiTaskbar = p.uiTaskbar;
     uiGrid = p.uiGrid;
     uiGridPages = p.uiGridPages;
     trendingTopics = p.trendingTopics;
@@ -584,6 +628,7 @@ class RemoteConfig extends ChangeNotifier {
     contacts = kSeedContacts;
     uiGrid = null;
     uiGridPages = const {};
+    uiTaskbar = TaskbarRule.none;
     trendingTopics = const [];
     dailyPraman = null;
     lastResult = 'none';

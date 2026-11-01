@@ -44,6 +44,7 @@ class DataCompat {
     Store.kPdfStyle, Store.kLook, Store.kTextSize, Store.kWifiOnly, Store.kAutoSync, Store.kAutoDownload, Store.kKeepAwake,
     Store.kHash, Store.kOfflineIds, Store.kDevice, Store.kNotifAsked, Store.kNotifHint,
     Store.kAnimations,
+    Store.kTaskbar,
   ];
 
   /// Keys older builds wrote that nothing reads any more (round 9 removed the "सारे ग्रंथ ऑफलाइन"

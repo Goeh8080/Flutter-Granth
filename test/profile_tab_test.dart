@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:granthprabandhan/state/ui_prefs.dart';
 import 'package:granthprabandhan/main.dart';
 import 'package:granthprabandhan/state/router.dart';
 import 'helpers.dart';
@@ -11,7 +12,10 @@ Future<void> settle(WidgetTester t, [int n = 14]) async {
 }
 
 void main() {
-  setUp(setUpApp);
+  setUp(() async {
+    await setUpApp();
+    UiPrefs.I.taskbar = true;
+  });
 
   for (final w in [320.0, 411.0]) {
     testWidgets('bottom tabs: profile is 3rd, opens Account, no overflow at ${w.toInt()}dp', (t) async {

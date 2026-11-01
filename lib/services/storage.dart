@@ -36,7 +36,11 @@ class Store {
   static const kWifiOnly = 'granth-wifi-only';
   static const kAutoDownload = 'granth-auto-download';
   static const kAutoSync = 'granth-auto-sync';
+
+  /// Round-3: bottom tab bar on ('1') / off ('0'); unset = off (or the admin's `ui.taskbar` default).
+  static const kTaskbar = 'granth-taskbar';
   static const kKeepAwake = 'granth-keep-awake';
+
   /// Round 8: "एनिमेशन" चालू ('1', default) / कम ('0') — the decorative entrance animations.
   static const kAnimations = 'granth-animations';
 

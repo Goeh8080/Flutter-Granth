@@ -69,6 +69,7 @@ void main() {
   }
 
   testWidgets('bottom tabs: shown on the dashboard, hidden on the AI chat', (t) async {
+    UiPrefs.I.taskbar = true;
     await boot(t);
     expect(find.byKey(const ValueKey('bottom-tabs')), findsOneWidget);
     AppNav.I.go('#/ai');

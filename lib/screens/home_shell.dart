@@ -53,6 +53,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     super.initState();
     _routeKey = nav.route.key;
     nav.addListener(_onNav);
+    UiPrefs.I.addListener(_onPrefs);
     nav.beforeLeave = _savePlace;
     nav.onExitRequest = _askExit;
     PdfQueue.I.addListener(_onQueue);
@@ -68,6 +69,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
   @override
   void dispose() {
     nav.removeListener(_onNav);
+    UiPrefs.I.removeListener(_onPrefs);
     PdfQueue.I.removeListener(_onQueue);
     PdfQueue.I.finished.removeListener(_onFinished);
     PdfNotify.I.hint.removeListener(_onNotifHint);
@@ -113,6 +115,11 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     }
 
     step();
+  }
+
+  bool _taskbar = UiPrefs.I.taskbar;
+  void _onPrefs() {
+    if (UiPrefs.I.taskbar != _taskbar && mounted) setState(() => _taskbar = UiPrefs.I.taskbar);
   }
 
   void _onNav() {
@@ -362,7 +369,25 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                    if (showTabs) Positioned(left: 0, right: 0, bottom: 0, child: BottomTabs(route: r)),
+                    // Round-3: the floating bar slides/fades in and out.
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        ignoring: !showTabs,
+                        child: AnimatedSlide(
+                          offset: showTabs ? Offset.zero : const Offset(0, 1.2),
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          child: AnimatedOpacity(
+                            opacity: showTabs ? 1 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: showTabs || BottomTabs.enabled ? BottomTabs(key: showTabs ? null : const ValueKey('bottom-tabs-hidden'), route: r) : const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    ),
                     // ashok's PDF deck: a centred modal over a scrim (it also covers the header).
                     if (_deckOpen && PdfQueue.I.jobs.isNotEmpty)
                       Positioned.fill(
@@ -826,13 +851,18 @@ class BottomTabs extends StatelessWidget {
   const BottomTabs({super.key, required this.route});
   final GRoute route;
 
-  static const double barHeight = 60;
+  /// Round-3: a floating, light, pill-shaped bar inset from the screen edges.
+  static const double barHeight = 64;
+  static const double gap = 10;
 
-  /// Space the bar takes at the bottom of the page (bar + system inset).
-  static double heightOf(BuildContext context) => barHeight + MediaQuery.paddingOf(context).bottom;
+  /// Space the bar takes at the bottom of the page (bar + gap + system inset).
+  static double heightOf(BuildContext context) => barHeight + gap * 2 + MediaQuery.paddingOf(context).bottom;
 
-  /// Hidden on the AI chat and whenever the keyboard is open (an input has focus).
-  static bool visibleFor(GRoute r, BuildContext context) => r.panel != Panel.ai && MediaQuery.viewInsetsOf(context).bottom == 0;
+  /// On in Settings (or by the admin's `ui.taskbar`); off on a fresh install.
+  static bool get enabled => UiPrefs.I.taskbar;
+
+  /// Hidden when switched off, on the AI chat and whenever the keyboard is open.
+  static bool visibleFor(GRoute r, BuildContext context) => enabled && r.panel != Panel.ai && MediaQuery.viewInsetsOf(context).bottom == 0;
 
   static const _tabs = [
     ('landmark', 'होम', '#/dashboard'),
@@ -853,18 +883,22 @@ class BottomTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
-    return Container(
-      key: const ValueKey('bottom-tabs'),
-      decoration: const BoxDecoration(
-        color: GColors.brown,
-        border: Border(top: BorderSide(color: GColors.gold, width: 1.5)),
-      ),
-      padding: EdgeInsets.only(bottom: bottom),
-      height: barHeight + bottom,
-      child: Row(
-        children: [
-          for (var i = 0; i < _tabs.length; i++) Expanded(child: _tab(i)),
-        ],
+    return Padding(
+      key: key ?? const ValueKey('bottom-tabs'),
+      padding: EdgeInsets.fromLTRB(14, gap, 14, gap + bottom),
+      child: Container(
+        height: barHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        decoration: BoxDecoration(
+          color: GColors.paper.withValues(alpha: 0.97),
+          borderRadius: BorderRadius.circular(barHeight / 2),
+          border: Border.all(color: GColors.gold.withValues(alpha: 0.35)),
+          boxShadow: [
+            BoxShadow(color: GColors.brown.withValues(alpha: 0.16), blurRadius: 22, offset: const Offset(0, 8)),
+            BoxShadow(color: GColors.brown.withValues(alpha: 0.06), blurRadius: 4, offset: const Offset(0, 1)),
+          ],
+        ),
+        child: Row(children: [for (var i = 0; i < _tabs.length; i++) Expanded(child: _tab(i))]),
       ),
     );
   }
@@ -872,7 +906,7 @@ class BottomTabs extends StatelessWidget {
   Widget _tab(int i) {
     final t = _tabs[i];
     final active = _active(i);
-    final color = active ? GColors.goldLight : GColors.cream.withValues(alpha: 0.68);
+    final color = active ? GColors.maroon : GColors.muted;
     final Widget icon = i == 2
         ? ListenableBuilder(
             listenable: FirebaseBridge.I,
@@ -885,7 +919,7 @@ class BottomTabs extends StatelessWidget {
                 padding: const EdgeInsets.all(1.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: active ? GColors.goldLight : GColors.gold.withValues(alpha: 0.6), width: 1.5),
+                  border: Border.all(color: active ? GColors.maroon : GColors.gold.withValues(alpha: 0.6), width: 1.5),
                 ),
                 // Photo only; no photo (or signed out) shows the person icon.
                 child: AccountAvatar(url: a?.photo ?? '', name: '', size: 22),
@@ -904,19 +938,35 @@ class BottomTabs extends StatelessWidget {
           if (!active) AppNav.I.go(t.$3);
         },
         scale: 0.94,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(height: 28, child: Center(child: icon)),
-            const SizedBox(height: 3),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(t.$2, maxLines: 1, style: GText.sans(size: 11, weight: FontWeight.w600, color: color)),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 240),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(color: active ? GColors.pillMaroon : Colors.transparent, borderRadius: BorderRadius.circular(26)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: active ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutBack,
+                child: SizedBox(height: 28, child: Center(child: icon)),
               ),
-            ),
-          ],
+              const SizedBox(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    t.$2,
+                    maxLines: 1,
+                    textScaler: TextScaler.noScaling,
+                    style: GText.sans(size: 10.5, weight: active ? FontWeight.w700 : FontWeight.w600, color: color),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -581,7 +581,7 @@ typedef SettingsFolder = ({String id, String title, String sub, String icon, Ton
 const textSizeOptions = [('small', 'छोटा'), ('normal', 'सामान्य'), ('large', 'बड़ा'), ('xlarge', 'बहुत बड़ा')];
 
 const settingsFolders = <SettingsFolder>[
-  (id: 'display', title: 'डिस्प्ले', sub: 'PDF स्टाइल, लेआउट, अक्षर का आकार, एनिमेशन', icon: 'layout-grid', tone: Tone.saffron),
+  (id: 'display', title: 'डिस्प्ले', sub: 'PDF स्टाइल, लेआउट, अक्षर का आकार, टैब पट्टी, एनिमेशन', icon: 'layout-grid', tone: Tone.saffron),
   (id: 'sync', title: 'सिंक / ऑफ़लाइन', sub: 'ऑफ़लाइन स्थिति, आख़िरी सिंक, सिंक बटन', icon: 'refresh-cw', tone: Tone.saffron),
   (id: 'downloads', title: 'डाउनलोड', sub: 'सिंक, WiFi, स्टोरेज और जाँच', icon: 'folder-down', tone: Tone.maroon),
   (id: 'notify', title: 'सूचनाएँ', sub: 'आज का प्रमाण, नए प्रमाण, नए विषय', icon: 'bell', tone: Tone.gold),
@@ -780,7 +780,27 @@ class _SettingsState extends State<_Settings> {
                     Pill(key: ValueKey('set-text-$id'), direct: true, label: title, tone: UiPrefs.I.textSize == id ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.textSize = id),
                   SizedBox(
                     width: double.infinity,
-                    child: Text('नमूना: सत ग्रंथों के प्रमाण', key: const ValueKey('set-text-sample'), style: GText.sans(size: 15, color: GColors.brown)),
+                    child: Text(
+                      'नमूना: सत ग्रंथों के प्रमाण',
+                      key: const ValueKey('set-text-sample'),
+                      style: GText.sans(size: 15, color: GColors.brown),
+                    ),
+                  ),
+                ]),
+                _block(UiPrefs.I.taskbarForced ? 'नीचे की टैब पट्टी (एडमिन ने तय की)' : 'नीचे की टैब पट्टी', [
+                  Pill(
+                    key: const ValueKey('set-taskbar-on'),
+                    direct: true,
+                    label: 'चालू',
+                    tone: UiPrefs.I.taskbar ? PillTone.maroon : PillTone.plain,
+                    onTap: UiPrefs.I.taskbarForced ? null : () => UiPrefs.I.taskbar = true,
+                  ),
+                  Pill(
+                    key: const ValueKey('set-taskbar-off'),
+                    direct: true,
+                    label: 'बंद',
+                    tone: UiPrefs.I.taskbar ? PillTone.plain : PillTone.maroon,
+                    onTap: UiPrefs.I.taskbarForced ? null : () => UiPrefs.I.taskbar = false,
                   ),
                 ]),
                 _block('एनिमेशन', [
@@ -790,7 +810,10 @@ class _SettingsState extends State<_Settings> {
               ],
               if (widget.section == 'sync') ...[
                 _section('sync', 'सिंक / ऑफ़लाइन', 'refresh-cw'),
-                const Padding(padding: EdgeInsets.only(top: 10), child: SyncStrip(key: ValueKey('set-sync-strip'))),
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: SyncStrip(key: ValueKey('set-sync-strip')),
+                ),
                 _toggle('auto-sync', 'अपने-आप सिंक (हर 2 मिनट)', UiPrefs.I.autoSync, (v) => UiPrefs.I.autoSync = v),
                 _toggle('auto-download', 'अपने-आप डाउनलोड (बंद हो तो सिर्फ़ टैप पर)', UiPrefs.I.autoDownload, (v) => UiPrefs.I.autoDownload = v),
               ],

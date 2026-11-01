@@ -46,11 +46,7 @@ class UiPrefs extends ChangeNotifier {
   /// Columns of the folder (shelves) and granth grids: the user's own choice (the switch on the
   /// screen, or settings → layout) always wins; until they choose, the admin's `ui.grid` from the
   /// signed config; without either, 2.
-  int get granthCols => cols(
-    Store.kGranthCols,
-    allowed: const [1, 2, 3],
-    fallback: RemoteConfig.I.gridFor('granths') ?? 2,
-  );
+  int get granthCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('granths') ?? 2);
 
   /// Folder (shelves) grid: same user choice as the granth grid; admin default `grid_pages.shelves`.
   int get shelfCols => cols(Store.kGranthCols, allowed: const [1, 2, 3], fallback: RemoteConfig.I.gridFor('shelves') ?? 2);
@@ -80,14 +76,24 @@ class UiPrefs extends ChangeNotifier {
   // ---- Extra settings (added in round 5; the web app has none of these) ----
 
   /// Reading text size: small / normal / large.
-  String get textSize => switch (Store.I.getString(Store.kTextSize)) { 'small' => 'small', 'large' => 'large', 'xlarge' => 'xlarge', _ => 'normal' };
+  String get textSize => switch (Store.I.getString(Store.kTextSize)) {
+    'small' => 'small',
+    'large' => 'large',
+    'xlarge' => 'xlarge',
+    _ => 'normal',
+  };
   set textSize(String v) {
     Store.I.setString(Store.kTextSize, v);
     textFactor.value = _factor(v);
     notifyListeners();
   }
 
-  static double _factor(String v) => switch (v) { 'small' => 0.9, 'large' => 1.15, 'xlarge' => 1.3, _ => 1.0 };
+  static double _factor(String v) => switch (v) {
+    'small' => 0.9,
+    'large' => 1.15,
+    'xlarge' => 1.3,
+    _ => 1.0,
+  };
 
   /// Multiplier on the phone's own text size; only the app's text scaler listens to it.
   late final ValueNotifier<double> textFactor = ValueNotifier(_factor(textSize));
@@ -100,7 +106,11 @@ class UiPrefs extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool _flag(String k, bool def) => switch (Store.I.getString(k)) { '1' || 'true' => true, '0' || 'false' => false, _ => def };
+  bool _flag(String k, bool def) => switch (Store.I.getString(k)) {
+    '1' || 'true' => true,
+    '0' || 'false' => false,
+    _ => def,
+  };
 
   /// Picture download for offline use only on WiFi (default off: download on any network).
   bool get wifiOnly => _flag(Store.kWifiOnly, false);
@@ -123,6 +133,24 @@ class UiPrefs extends ChangeNotifier {
   }
 
   /// The 2-minute / on-resume refresh (default on).
+  /// Round-3: the user's own taskbar choice; null = never chosen.
+  bool? get taskbarLocal => switch (Store.I.getString(Store.kTaskbar)) {
+    '1' => true,
+    '0' => false,
+    _ => null,
+  };
+  set taskbar(bool v) {
+    Store.I.setString(Store.kTaskbar, v ? '1' : '0');
+    notifyListeners();
+  }
+
+  /// Whether the bottom tab bar is on: the admin's `ui.taskbar.force` wins, then the user's own
+  /// choice, then the admin's default, then off (fresh install).
+  bool get taskbar => resolveTaskbar(RemoteConfig.I.uiTaskbar, taskbarLocal);
+
+  /// The admin forces the bar on/off (the Settings toggle is then locked).
+  bool get taskbarForced => RemoteConfig.I.uiTaskbar.force != null;
+
   bool get autoSync => _flag(Store.kAutoSync, true);
   set autoSync(bool v) {
     Store.I.setString(Store.kAutoSync, v ? '1' : '0');
@@ -150,7 +178,7 @@ class UiPrefs extends ChangeNotifier {
   /// pages, gallery and PDFs are never touched.
   static const settingKeys = [
     Store.kLook, Store.kUiCols, Store.kTopicCols, Store.kGranthCols, Store.kPramanCols, Store.kGalleryCols, //
-    Store.kPdfStyle, Store.kTextSize, Store.kWifiOnly, Store.kAutoDownload, Store.kAutoSync, Store.kKeepAwake, Store.kAnimations,
+    Store.kPdfStyle, Store.kTextSize, Store.kWifiOnly, Store.kAutoDownload, Store.kAutoSync, Store.kKeepAwake, Store.kAnimations, Store.kTaskbar,
   ];
   Future<void> resetAll() async {
     for (final k in settingKeys) {
