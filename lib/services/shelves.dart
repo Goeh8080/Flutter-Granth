@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../models/models.dart';
 import '../models/structure.dart';
+import '../util/log.dart';
 
 /// Holds the bundled folder structure and the index built from the current catalog.
 ///
@@ -26,7 +27,7 @@ class Shelves {
       bundled = structure = Structure.parse(await rootBundle.loadString(asset));
     } catch (e) {
       // Never block the app: without the file every granth simply lands in अन्य.
-      debugPrint('structure: $e');
+      log('structure: $e');
       bundled = structure = Structure.empty;
     }
     overrides = const {};

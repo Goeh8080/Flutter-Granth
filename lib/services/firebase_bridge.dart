@@ -20,6 +20,7 @@ import '../state/toast.dart';
 import 'analytics.dart';
 import 'remote_config.dart';
 import 'storage.dart';
+import '../util/log.dart';
 
 /// Optional Web OAuth client id (when google-services.json carries none).
 const String kGoogleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID', defaultValue: '386256348529-55gsprsn906i00e6726tu1gdo253kipv.apps.googleusercontent.com');
@@ -88,7 +89,7 @@ class FirebaseBridge extends ChangeNotifier {
       await Firebase.initializeApp().timeout(const Duration(seconds: 4));
       ready = true;
     } catch (e) {
-      debugPrint('firebase: init: $e');
+      log('firebase: init: $e');
       return;
     }
     try {
@@ -104,7 +105,7 @@ class FirebaseBridge extends ChangeNotifier {
         return prevP?.call(e, st) ?? true;
       };
     } catch (e) {
-      debugPrint('firebase: crashlytics: $e');
+      log('firebase: crashlytics: $e');
     }
     Analytics.screenForward = (screen) => unawaited(FirebaseAnalytics.instance.logScreenView(screenName: screen).catchError((_) {}));
     Analytics.forward = (name, params) => unawaited(FirebaseAnalytics.instance.logEvent(name: name, parameters: params).catchError((_) {}));
@@ -143,7 +144,7 @@ class FirebaseBridge extends ChangeNotifier {
   Future<String?> signIn() async {
     if (busy) return null;
     if (!ready) {
-      debugPrint('sign-in: firebase not ready (google-services.json missing from build?)');
+      log('sign-in: firebase not ready (google-services.json missing from build?)');
       return error = 'लॉगिन अभी उपलब्ध नहीं है (Firebase चालू नहीं)।';
     }
     busy = true;
@@ -169,7 +170,7 @@ class FirebaseBridge extends ChangeNotifier {
       await _setAccount(AccountInfo(email: u.email ?? acc.email, name: u.displayName ?? acc.displayName ?? '', photo: u.photoURL ?? acc.photoUrl ?? ''));
       return null;
     } on GoogleSignInException catch (e) {
-      debugPrint('google sign-in failed: code=${e.code.name} desc=${e.description}');
+      log('google sign-in failed: code=${e.code.name} desc=${e.description}');
       recordError(e, StackTrace.current);
       // Round-2: "canceled" is also what Credential Manager reports when the account was picked
       // but Google refused the token (OAuth client / SHA / consent problems), so it is shown too.
@@ -179,11 +180,11 @@ class FirebaseBridge extends ChangeNotifier {
       }
       return error = 'Google लॉगिन नहीं हो सका (${e.code.name}${desc.isEmpty ? '' : ': $desc'})। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
     } on FirebaseAuthException catch (e) {
-      debugPrint('firebase auth sign-in failed: code=${e.code} msg=${e.message}');
+      log('firebase auth sign-in failed: code=${e.code} msg=${e.message}');
       recordError(e, StackTrace.current);
       return error = 'लॉगिन नहीं हो सका (${e.code})। कृपया दोबारा प्रयास करें।';
     } catch (e) {
-      debugPrint('sign-in failed: $e');
+      log('sign-in failed: $e');
       recordError(e, StackTrace.current);
       return error = 'Google लॉगिन नहीं हो सका ($e)।';
     } finally {
@@ -246,7 +247,7 @@ class FirebaseBridge extends ChangeNotifier {
         await FirebaseMessaging.instance.unsubscribeFromTopic(t);
       }
     } catch (e) {
-      debugPrint('fcm: $t: $e');
+      log('fcm: $t: $e');
     }
   }
 
@@ -265,7 +266,7 @@ class FirebaseBridge extends ChangeNotifier {
         want.contains(t) ? await m.subscribeToTopic(t) : await m.unsubscribeFromTopic(t);
       }
     } catch (e) {
-      debugPrint('fcm: sync: $e');
+      log('fcm: sync: $e');
     }
   }
 
@@ -301,7 +302,7 @@ class FirebaseBridge extends ChangeNotifier {
       final first = await FirebaseMessaging.instance.getInitialMessage();
       if (first != null) _openMessage(first);
     } catch (e) {
-      debugPrint('fcm: init: $e');
+      log('fcm: init: $e');
     }
   }
 

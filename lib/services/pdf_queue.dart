@@ -19,6 +19,7 @@ import 'order.dart';
 import 'pdf_builder.dart';
 import 'pdf_notify.dart';
 import 'storage.dart';
+import '../util/log.dart';
 
 enum PdfPhase { waiting, images, pages, save, done, cancelled, error }
 
@@ -356,7 +357,7 @@ class PdfQueue extends ChangeNotifier {
           notifyListeners();
           return;
         }
-        debugPrint('PDF "${job.title}" attempt ${job.attempts} failed: $e\n$st');
+        log('PDF "${job.title}" attempt ${job.attempts} failed: $e\n$st');
         if (_isNoSpace(e)) {
           final free = e is PdfNoSpace ? e.freeBytes : await freeBytes().catchError((Object _) => null);
           _fail(job, pdfNoSpaceMessage(free), 'nospace');

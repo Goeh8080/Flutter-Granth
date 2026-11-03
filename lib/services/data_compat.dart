@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 
 import 'storage.dart';
+import '../util/log.dart';
 
 /// Layout version of the data this app keeps on the phone (settings, `catalog.json`,
 /// `gallery.json`, `folders.json`, saved pictures, PDFs). It is NOT the app's version code:
@@ -78,7 +78,7 @@ class DataCompat {
         ran.add('v$at→v${at + 1}');
         at++;
       } catch (e) {
-        debugPrint('DataCompat: step v$at failed, will retry next start: $e');
+        log('DataCompat: step v$at failed, will retry next start: $e');
         break;
       }
     }

@@ -16,6 +16,7 @@ import 'remote_config.dart';
 import 'shelves.dart';
 import 'local_stats.dart';
 import 'storage.dart';
+import '../util/log.dart';
 
 /// Anonymous usage counts for the admin's dashboard (docs/AI.md → "Analytics").
 ///
@@ -181,7 +182,7 @@ class Analytics with WidgetsBindingObserver {
       // The first upload attempt waits a little: the first screen comes first.
       Timer(const Duration(seconds: 20), () => unawaited(flush(force: false)));
     } catch (e) {
-      debugPrint('analytics: start: $e');
+      log('analytics: start: $e');
     }
   }
 
@@ -202,7 +203,7 @@ class Analytics with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      debugPrint('analytics: lifecycle: $e');
+      log('analytics: lifecycle: $e');
     }
   }
 
@@ -240,7 +241,7 @@ class Analytics with WidgetsBindingObserver {
       if (r.pramanId != null) _bump(_openP, r.pramanId!);
       if (_segStart == null && _foreground) _segStart = _now();
     } catch (e) {
-      debugPrint('analytics: nav: $e');
+      log('analytics: nav: $e');
     }
   }
 
@@ -517,7 +518,7 @@ class Analytics with WidgetsBindingObserver {
       if (force || _fgMs >= 600000) _enqueueCurrent();
       await _send();
     } catch (e) {
-      debugPrint('analytics: flush: $e');
+      log('analytics: flush: $e');
     }
   }
 

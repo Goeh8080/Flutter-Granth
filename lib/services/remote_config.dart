@@ -12,6 +12,7 @@ import 'ed25519.dart';
 import 'shelves.dart';
 import 'storage.dart';
 import '../state/ui_prefs.dart';
+import '../util/log.dart';
 
 /// One person on the "विशेष जानकार" page.
 class Contact {
@@ -593,7 +594,7 @@ class RemoteConfig extends ChangeNotifier {
       }
       _apply(p, notify: false);
     } catch (e) {
-      debugPrint('remote config: load: $e');
+      log('remote config: load: $e');
     }
   }
 
@@ -635,7 +636,7 @@ class RemoteConfig extends ChangeNotifier {
       return changed;
     } catch (e) {
       lastResult = 'failed';
-      debugPrint('remote config: $e');
+      log('remote config: $e');
       return false;
     }
   }

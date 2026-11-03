@@ -23,6 +23,7 @@ import 'state/ui_prefs.dart';
 import 'theme/colors.dart';
 import 'widgets/zoom.dart';
 import 'widgets/bounded_scroll.dart';
+import 'util/log.dart';
 
 void main() {
   runZonedGuarded<Future<void>>(
@@ -35,46 +36,46 @@ void main() {
       try {
         await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('init: orientation: $e');
+        log('init: orientation: $e');
       }
       try {
         await Store.I.init().timeout(const Duration(seconds: 6));
       } catch (e) {
-        debugPrint('init: store: $e');
+        log('init: store: $e');
       }
       // Not awaited for long: both only tune / tidy, the app works without them.
       try {
         await Future.wait([DeviceProfile.load(), FileActions.cleanupPartials()]).timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('init: profile/cleanup: $e');
+        log('init: profile/cleanup: $e');
       }
       try {
         await Shelves.load().timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('init: structure: $e');
+        log('init: structure: $e');
       }
       try {
         await RemoteConfig.I.load().timeout(const Duration(seconds: 2));
       } catch (e) {
-        debugPrint('init: remote config: $e');
+        log('init: remote config: $e');
       }
       try {
         AppNav.I.restore();
       } catch (e) {
-        debugPrint('init: restore: $e');
+        log('init: restore: $e');
       }
       try {
         EventLog.I.log('app_open', 'app');
       } catch (_) {}
       try {
         // The catalog loads in the background; the splash never waits for the network.
-        boot = CatalogStore.I.boot().catchError((Object e, StackTrace st) => debugPrint('boot: $e\n$st'));
+        boot = CatalogStore.I.boot().catchError((Object e, StackTrace st) => log('boot: $e\n$st'));
       } catch (e) {
-        debugPrint('init: boot: $e');
+        log('init: boot: $e');
       }
       // Firebase (analytics, crashlytics, optional login, push topics): never blocks the app.
       Analytics.I.named('app_open'); // CONTRACT §6.2: once per cold start, to /events and, once Firebase is up, as the optional GA4 app_open
-      unawaited(FirebaseBridge.I.init().then((_) => Analytics.forward?.call('app_open', const {})).catchError((Object e) => debugPrint('init: firebase: $e')));
+      unawaited(FirebaseBridge.I.init().then((_) => Analytics.forward?.call('app_open', const {})).catchError((Object e) => log('init: firebase: $e')));
       runApp(GranthApp(ready: boot));
       // Anonymous usage counts start after the first frame; they never delay the app.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -83,24 +84,43 @@ void main() {
       });
     },
     (error, stack) {
-      debugPrint('Uncaught: $error\n$stack');
+      log('Uncaught: $error\n$stack');
+      FirebaseBridge.I.recordError(error, stack); // no-op until Firebase is up
     },
   );
 }
 
+/// Crash safety. Before Firebase is up errors are only logged (debug builds); once it is up,
+/// [FirebaseBridge.init] chains Crashlytics onto both handlers, and zone errors (runZonedGuarded)
+/// go to Crashlytics through [FirebaseBridge.recordError].
 void _installErrorHandlers() {
   FlutterError.onError = (details) {
-    FlutterError.presentError(details);
+    // Release: nothing on the console; Crashlytics is chained on by FirebaseBridge.init.
+    if (!kReleaseMode) FlutterError.presentError(details);
   };
   PlatformDispatcher.instance.onError = (error, stack) {
-    debugPrint('Platform error: $error\n$stack');
-    return true;
+    log('Platform error: $error\n$stack');
+    return true; // handled; FirebaseBridge.init chains Crashlytics (fatal) in front of this
   };
-  if (kReleaseMode) {
-    // A broken widget shows an empty box instead of a grey screen.
-    ErrorWidget.builder = (details) => const SizedBox.shrink();
-  }
+  if (kReleaseMode) ErrorWidget.builder = releaseErrorWidget;
 }
+
+/// Release-mode stand-in for a widget that failed to build: a small, calm note instead of a
+/// red/grey box. Never shows the error text.
+Widget releaseErrorWidget(FlutterErrorDetails details) => const Directionality(
+  textDirection: TextDirection.ltr,
+  child: Padding(
+    padding: EdgeInsets.all(12),
+    child: Center(
+      child: Text(
+        'यह भाग अभी नहीं दिख पा रहा है।',
+        key: ValueKey('release-error-widget'),
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 13, color: Color(0xFF8A6A4A), decoration: TextDecoration.none),
+      ),
+    ),
+  ),
+);
 
 class GranthApp extends StatefulWidget {
   const GranthApp({super.key, this.ready, this.splash = true, this.links = true, this.linkStream, this.initialLink});
@@ -139,7 +159,7 @@ class _GranthAppState extends State<GranthApp> with WidgetsBindingObserver {
       final stream = widget.linkStream ?? AppLinks().uriLinkStream;
       _links = stream.listen(_safeOpen, onError: (_) {});
     } catch (e) {
-      debugPrint('links: stream: $e');
+      log('links: stream: $e');
     }
     try {
       final first = widget.initialLink ?? AppLinks().getInitialLink();
@@ -147,9 +167,9 @@ class _GranthAppState extends State<GranthApp> with WidgetsBindingObserver {
           .then((u) {
             if (u != null) _safeOpen(u);
           })
-          .catchError((Object e) => debugPrint('links: initial: $e'));
+          .catchError((Object e) => log('links: initial: $e'));
     } catch (e) {
-      debugPrint('links: initial: $e');
+      log('links: initial: $e');
     }
   }
 
@@ -158,7 +178,7 @@ class _GranthAppState extends State<GranthApp> with WidgetsBindingObserver {
       _open(u);
     } catch (e, st) {
       // A malformed link must never break the app: fall back to the dashboard.
-      debugPrint('links: $u: $e\n$st');
+      log('links: $u: $e\n$st');
       AppNav.I.openLink('#/dashboard');
     }
   }

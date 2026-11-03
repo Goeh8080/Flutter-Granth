@@ -16,6 +16,7 @@ import 'image_cache.dart';
 import 'native_bridge.dart';
 import 'search.dart';
 import 'storage.dart';
+import '../util/log.dart';
 
 enum SyncStatus { booting, ready, offline, syncing, error }
 
@@ -207,7 +208,7 @@ class CatalogStore extends ChangeNotifier {
         _gDocs[g.id] = docs[i++];
       }
     } catch (e) {
-      debugPrint('search index: $e');
+      log('search index: $e');
     }
   }
 
@@ -253,7 +254,7 @@ class CatalogStore extends ChangeNotifier {
         // Decode + compare key off the UI thread for a real (~1.5 MB) catalog.
         if (text != null) cached = text.length > 100000 ? await compute(loadCatalogText, text) : loadCatalogText(text);
       } catch (e) {
-        debugPrint('catalog.json unreadable, will sync fresh: $e');
+        log('catalog.json unreadable, will sync fresh: $e');
       }
       if (cached != null && cached.topics.isEmpty && cached.granths.isEmpty) cached = null;
       // A saved file this version can't read is set aside, not lost (the fresh sync replaces it).
@@ -471,7 +472,7 @@ class CatalogStore extends ChangeNotifier {
       lastSync.value = syncedAt;
       if (silent && !changed && was == (status, error)) return false;
     } catch (e) {
-      debugPrint('sync failed: $e');
+      log('sync failed: $e');
       Analytics.I.syncResult(false, Analytics.kindOf(e));
       if (silent && hasData) {
         // Quiet retry in 2 minutes; nothing on screen changes.
@@ -671,7 +672,7 @@ class CatalogStore extends ChangeNotifier {
       try {
         await _savePass(run, g.first, g.rest, all, verify: verify, manual: manual, shownAt: shownAt);
       } catch (e) {
-        debugPrint('savePages: $e');
+        log('savePages: $e');
       } finally {
         if (run == _saveRun) {
           _saveActive = false;

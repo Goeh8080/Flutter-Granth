@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data_compat.dart';
+import '../util/log.dart';
 
 /// Replaces the web app's localStorage + IndexedDB (`granth-offline`).
 /// Keys are kept identical to the original so behaviour maps 1:1.
@@ -73,8 +74,8 @@ class Store {
       } catch (e) {
         // Too slow (or failed) at start-up: the app opens anyway, settings live in memory,
         // and the preferences are picked up (and written) as soon as they do arrive.
-        debugPrint('Store: prefs not ready yet: $e');
-        load.then(_adopt).catchError((Object e) => debugPrint('Store: prefs unavailable: $e'));
+        log('Store: prefs not ready yet: $e');
+        load.then(_adopt).catchError((Object e) => log('Store: prefs unavailable: $e'));
       }
     }
     if (_root == null) {
@@ -82,7 +83,7 @@ class Store {
         final docs = await getApplicationDocumentsDirectory().timeout(const Duration(seconds: 4));
         _root = Directory('${docs.path}/granth');
       } catch (e) {
-        debugPrint('Store: documents dir unavailable: $e');
+        log('Store: documents dir unavailable: $e');
         _root = Directory('${Directory.systemTemp.path}/granth');
       }
       for (final d in ['images', 'gallery', 'pdfs', 'Granth']) {

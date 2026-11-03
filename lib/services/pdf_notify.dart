@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'native_bridge.dart';
 import 'pdf_queue.dart';
 import 'storage.dart';
+import '../util/log.dart';
 
 /// Status-bar side of PDF making (Android foreground service `PdfService`).
 ///
@@ -73,7 +74,7 @@ class PdfNotify {
     lastCheck = '';
   }
 
-  static void _log(String m) => debugPrint('[GranthPdf] $m');
+  static void _log(String m) => log('[GranthPdf] $m');
 
   static String text(int count, int percent) => count == 1 ? '1 PDF बन रही है — $percent%' : '$count PDF बन रही हैं — $percent%';
 

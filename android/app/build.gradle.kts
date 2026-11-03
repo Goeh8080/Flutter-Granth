@@ -17,7 +17,8 @@ val hasReleaseKey = keyProps.getProperty("storeFile")?.let { file(it).exists() }
 
 android {
     namespace = "com.wnm.granthprabandhan"
-    compileSdk = flutter.compileSdkVersion
+    // Play requires targetSdk ≥ 35; pinned so a Flutter SDK change can not lower it.
+    compileSdk = maxOf(flutter.compileSdkVersion, 36)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -31,7 +32,7 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = maxOf(flutter.targetSdkVersion, 36)
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
@@ -54,8 +55,13 @@ android {
     buildTypes {
         release {
             signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
-            // Added to Flutter's own R8 rules: keep the PDF notification service by name.
-            proguardFiles("proguard-rules.pro")
+            // Production: R8 code shrinking + resource shrinking, never debuggable.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            isJniDebuggable = false
+            // Added to Flutter's own R8 rules: app services, Firebase, sign-in, PDF.
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
