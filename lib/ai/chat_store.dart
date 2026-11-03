@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../services/storage.dart';
-import 'ai_client.dart' show AiCorrection, AiRef, BookSource, parseRefs, parseSources;
+import 'ai_client.dart' show AiCorrection, AiRef, BookSource, parseRefs, parseSources, QuizResult;
 
 const int kMaxChats = 50;
 const int kMaxMessages = 60;
@@ -16,7 +16,10 @@ const int kMaxMessageChars = 8000;
 const int kTitleChars = 48;
 
 class ChatMsg {
-  const ChatMsg({required this.role, required this.text, this.cited = const [], this.at = 0, this.ref, this.ask, this.sources = const [], this.refs = const [], this.correction});
+  const ChatMsg({required this.role, required this.text, this.cited = const [], this.at = 0, this.ref, this.ask, this.sources = const [], this.refs = const [], this.correction, this.quizResult});
+
+  /// ज्ञान चर्चा verdict shown as a right / wrong / neutral chip under this answer.
+  final QuizResult? quizResult;
 
   /// Tappable app references (assistant messages only; Worker w3+).
   final List<AiRef> refs;
@@ -54,6 +57,7 @@ class ChatMsg {
     if (sources.isNotEmpty) 'sources': [for (final s in sources) s.toJson()],
     if (refs.isNotEmpty) 'refs': [for (final r in refs) r.toJson()],
     'correction': ?correction?.toJson(),
+    'quiz_result': ?quizResult?.toJson(),
   };
 
   static ChatMsg? fromJson(Object? j) {
@@ -75,6 +79,7 @@ class ChatMsg {
       sources: parseSources(j['sources']),
       refs: parseRefs(j['refs']),
       correction: AiCorrection.fromJson(j['correction']),
+      quizResult: QuizResult.fromJson(j['quiz_result']),
       ask: j['ask'] is String ? j['ask'] as String : null,
     );
   }

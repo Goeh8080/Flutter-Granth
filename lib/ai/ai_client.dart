@@ -31,8 +31,16 @@ class AiAnswer {
     this.sources = const [],
     this.refs = const [],
     this.correction,
+    this.nextQuestion,
+    this.quizResult,
   });
   final String answer;
+
+  /// ज्ञान चर्चा (`mode:"gyan_charcha"`): the next quiz question; null outside the mode / absent.
+  final QuizQuestion? nextQuestion;
+
+  /// ज्ञान चर्चा: the verdict on a `quiz_reply_to` answer; null when absent.
+  final QuizResult? quizResult;
   final List<int> cited;
   final String provider;
 
@@ -55,6 +63,46 @@ class AiAnswer {
 
   /// Whether to offer "प्रश्न एडमिन को भेजें?": `ask_admin:true`, else `found` alone decides; null → heuristic.
   bool? get offerAdmin => askAdmin == true ? true : (found != null ? !found! : notFound);
+}
+
+/// Tatv AI `next_question: {id, text, options?:[string], praman_id?}`.
+class QuizQuestion {
+  const QuizQuestion({required this.id, required this.text, this.options = const [], this.pramanId});
+  final String id, text;
+  final List<String> options;
+  final int? pramanId;
+  static QuizQuestion? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final id = j['id'], t = j['text'];
+    if (id == null || t is! String || t.trim().isEmpty) return null;
+    final o = j['options'];
+    final pid = j['praman_id'];
+    return QuizQuestion(
+      id: '$id',
+      text: t.trim(),
+      options: [
+        if (o is List)
+          for (final e in o.take(6))
+            if (e is String && e.trim().isNotEmpty) e.trim(),
+      ],
+      pramanId: pid is num ? pid.toInt() : int.tryParse('${pid ?? ''}'),
+    );
+  }
+}
+
+/// Tatv AI `quiz_result: {question_id, correct: true|false|null, feedback}`.
+class QuizResult {
+  const QuizResult({required this.questionId, this.correct, this.feedback = ''});
+  final String questionId;
+  final bool? correct;
+  final String feedback;
+  static QuizResult? fromJson(Object? j) {
+    if (j is! Map || j['question_id'] == null) return null;
+    final c = j['correct'];
+    return QuizResult(questionId: '${j['question_id']}', correct: c is bool ? c : null, feedback: j['feedback'] is String ? (j['feedback'] as String).trim() : '');
+  }
+
+  Map<String, Object?> toJson() => {'question_id': questionId, 'correct': correct, 'feedback': feedback};
 }
 
 /// One SRJM book citation under an answer.
@@ -160,13 +208,15 @@ String _cut(String s, int max) {
 }
 
 /// The JSON body of `POST /ask`, with every limit of the contract applied.
-Map<String, Object> buildAskBody(String question, List<AiTurn> history, List<Candidate> candidates) {
+Map<String, Object> buildAskBody(String question, List<AiTurn> history, List<Candidate> candidates, {String? mode, String? quizReplyTo}) {
   final turns = history.where((t) => t.text.trim().isNotEmpty && (t.role == 'user' || t.role == 'assistant')).toList();
   final last = turns.length > kHistoryTurns ? turns.sublist(turns.length - kHistoryTurns) : turns;
   return {
     'question': _cut(question.trim(), kQuestionMax),
     'history': [for (final t in last) AiTurn(t.role, _cut(t.text.trim(), kHistoryTextMax)).toJson()],
     'candidates': [for (final c in candidates.take(kCandidatesMax)) c.toJson()],
+    'mode': ?mode,
+    'quiz_reply_to': ?quizReplyTo,
   };
 }
 
@@ -215,6 +265,8 @@ AiAnswer parseAskResponse(int status, String body) {
           sources: parseSources(json['sources']),
           refs: parseRefs(json['refs']),
           correction: AiCorrection.fromJson(json['correction']),
+          nextQuestion: QuizQuestion.fromJson(json['next_question']),
+          quizResult: QuizResult.fromJson(json['quiz_result']),
         );
       }
     }
@@ -238,9 +290,13 @@ class AiClient {
   final Duration backoff;
   final String header;
 
+  /// ज्ञान चर्चा: set by the chat just before [ask] (`mode`, `quiz_reply_to`), cleared after.
+  String? mode;
+  String? quizReplyTo;
+
   /// Asks once; on a timeout, a network error, a 429 or a 5xx it waits a little and asks once more.
   Future<AiAnswer> ask(String question, List<AiTurn> history, List<Candidate> candidates) async {
-    final body = jsonEncode(buildAskBody(question, history, candidates));
+    final body = jsonEncode(buildAskBody(question, history, candidates, mode: mode, quizReplyTo: quizReplyTo));
     try {
       return await _once(body);
     } on AiException catch (e) {

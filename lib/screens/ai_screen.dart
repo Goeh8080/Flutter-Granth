@@ -239,6 +239,31 @@ class _AiPanelState extends State<AiPanel> {
                   child: AskAdminCard(offer: c.offer!, onYes: c.askAdmin, onNo: c.declineOffer),
                 ),
               ),
+            // ज्ञान चर्चा quiz loop: the Worker's options, else "अगला प्रश्न".
+            if (!c.sending && c.quiz != null && c.quiz!.convId == c.current?.id && c.quiz!.q.options.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    key: const ValueKey('quiz-options'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final (i, o) in c.quiz!.q.options.indexed)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: SheetButton(key: ValueKey('quiz-opt-$i'), label: o, onTap: () => c.answerQuiz(o)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            if (c.offerNext)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: SheetButton(key: const ValueKey('quiz-next'), label: 'अगला प्रश्न', icon: 'chevron-right', primary: true, onTap: _gyan),
+                ),
+              ),
             if (c.gyan != null && c.gyan!.convId == c.current?.id)
               SliverToBoxAdapter(
                 child: Padding(
@@ -470,6 +495,7 @@ class _AnswerBubbleState extends State<AnswerBubble> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Long-press selects a word and shows Copy; handles extend the selection.
+                  if (msg.quizResult != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Align(alignment: Alignment.centerLeft, child: QuizResultChip(msg.quizResult!))),
                   SelectionArea(child: LightMarkdown(_text, size: 15.5)),
                   if (_shownRefs.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -1230,4 +1256,25 @@ class BookSourceLinks extends StatelessWidget {
         ),
     ],
   );
+}
+
+
+/// ज्ञान चर्चा `quiz_result`: ✓ सही / ✗ गलत / • neutral, with the Worker's feedback.
+class QuizResultChip extends StatelessWidget {
+  const QuizResultChip(this.r, {super.key});
+  final QuizResult r;
+  @override
+  Widget build(BuildContext context) {
+    final (label, bg, fg) = switch (r.correct) {
+      true => ('✓ सही उत्तर', const Color(0xFFE3F4E6), const Color(0xFF1E6B34)),
+      false => ('✗ सही नहीं', const Color(0xFFFBE4E1), const Color(0xFF9A2A1F)),
+      null => ('• उत्तर देखा', GColors.cream, GColors.brown),
+    };
+    return Container(
+      key: ValueKey('quiz-result-${r.correct}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Text(r.feedback.isEmpty ? label : '$label · ${r.feedback}', style: GText.sans(size: 13, weight: FontWeight.w600, color: fg, height: 1.35)),
+    );
+  }
 }

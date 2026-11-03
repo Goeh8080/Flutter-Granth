@@ -103,6 +103,18 @@ class ChatController extends ChangeNotifier {
   /// A ज्ञान चर्चा question waiting for its answer to be revealed.
   GyanCard? gyan;
 
+  /// ज्ञान चर्चा quiz loop: chats in quiz mode (asks go out with `mode:"gyan_charcha"`).
+  final Set<String> quizChats = {};
+
+  /// The server's open quiz question for [QuizQuestion]; answering it sends `quiz_reply_to`.
+  ({String convId, QuizQuestion q})? quiz;
+
+  /// Whether to offer "अगला प्रश्न" (quiz chat, nothing pending, no server question).
+  bool get offerNext {
+    final id = current?.id;
+    return id != null && quizChats.contains(id) && !sending && gyan == null && quiz?.convId != id && messages.isNotEmpty && !messages.last.isUser;
+  }
+
   /// Bumped when something was added to the open chat (the screen scrolls on it).
   int tick = 0;
   int _run = 0;
@@ -137,6 +149,7 @@ class ChatController extends ChangeNotifier {
     error = null;
     offer = null;
     gyan = null;
+    quiz = null;
     tick++;
     notifyListeners();
   }
@@ -219,8 +232,21 @@ class ChatController extends ChangeNotifier {
       final room = (kCandidatesMax - notes.length - tops.length).clamp(1, kCandidatesMax);
       final prs = await Retriever.I.candidates(ps, version, question, context: context, k: room);
       final cands = [...notes, ...prs, ...tops];
-      final a = await client.ask(question, history, cands);
-      if (run != _run) return; // the user switched chat meanwhile: this answer is dropped
+      final inQuiz = quizChats.contains(c.id);
+      final replyTo = inQuiz && quiz?.convId == c.id ? quiz!.q.id : null;
+      client
+        ..mode = inQuiz ? 'gyan_charcha' : null
+        ..quizReplyTo = replyTo;
+      final AiAnswer a;
+      try {
+        a = await client.ask(question, history, cands);
+      } finally {
+        client
+          ..mode = null
+          ..quizReplyTo = null;
+      }
+      if (run != _run) return;
+      if (replyTo != null && quiz?.q.id == replyTo) quiz = null; // the user switched chat meanwhile: this answer is dropped
       final known = <int>[
         for (final id in a.cited)
           if (Retriever.I.praman(id) != null) id,
@@ -239,8 +265,15 @@ class ChatController extends ChangeNotifier {
           sources: a.sources,
           refs: a.refs,
           correction: a.correction,
+          quizResult: inQuiz ? a.quizResult : null,
         ),
       );
+      // ज्ञान चर्चा: the AI asks the next question itself (quiz loop).
+      final nq = inQuiz ? a.nextQuestion : null;
+      if (nq != null) {
+        c.messages.add(ChatMsg(role: 'assistant', text: '**अगला प्रश्न**\n\n❓ ${nq.text}', at: now + 1));
+        quiz = (convId: c.id, q: nq);
+      }
       c.updated = now;
       sending = false;
       offer = aiCannotAnswer(answer: text, cited: a.cited, isPraman: (id) => Retriever.I.praman(id) != null, notFound: a.offerAdmin)
@@ -283,6 +316,8 @@ class ChatController extends ChangeNotifier {
     error = null;
     offer = null;
     gyan = null;
+    quiz = null;
+    quizChats.clear();
     loaded = false;
     _loading = null;
     _run++;
@@ -401,6 +436,8 @@ class ChatController extends ChangeNotifier {
     }
     final now = DateTime.now().millisecondsSinceEpoch;
     final c = current ??= Conversation(id: id, title: 'ज्ञान चर्चा', created: now, updated: now);
+    quizChats.add(c.id);
+    if (quiz?.convId == c.id) quiz = null;
     c.messages.add(ChatMsg(role: 'assistant', text: '**ज्ञान चर्चा**\n\n❓ ${card.question}\n\nपहले खुद सोचिए, फिर “उत्तर और प्रमाण देखें” दबाइए।', at: now));
     c.updated = now;
     offer = null;
@@ -411,6 +448,13 @@ class ChatController extends ChangeNotifier {
     await _persist(c);
     return true;
   }
+
+  /// Taps an option of the server's quiz question (sent with `quiz_reply_to`).
+  Future<bool> answerQuiz(String option) => send(option);
+
+  /// "अगला प्रश्न": asks the Worker for the next question in quiz mode; when the Worker is not
+  /// in quiz mode yet (no `next_question`), the app picks one locally ([startGyan]).
+  Future<bool> nextQuestion() => startGyan();
 
   /// "उत्तर और प्रमाण देखें": the answer and the granths that hold its pramans.
   Future<void> revealGyan() async {

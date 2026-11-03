@@ -1,0 +1,71 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:granthprabandhan/ai/ai_client.dart';
+import 'package:granthprabandhan/ai/chat_controller.dart';
+import 'package:granthprabandhan/ai/chat_store.dart';
+import 'package:granthprabandhan/ai/retriever.dart';
+
+import 'ai_chat_store_test.dart' show FakeClient;
+import 'ai_retrieval_test.dart' show realPramans;
+import 'helpers.dart';
+
+class ModeClient extends FakeClient {
+  ModeClient(super.script);
+  final List<(String?, String?)> sent = [];
+  @override
+  Future<AiAnswer> ask(String question, List<AiTurn> history, List<Candidate> candidates) {
+    sent.add((mode, quizReplyTo));
+    return super.ask(question, history, candidates);
+  }
+}
+
+void main() {
+  setUp(setUpApp);
+
+  test('parse: next_question / quiz_result, absent → null', () {
+    final a = parseAskResponse(200, jsonEncode({
+      'answer': 'उत्तर',
+      'next_question': {'id': 'q7', 'text': 'कबीर साहेब कब प्रकट हुए?', 'options': ['1398', '1500', 7], 'praman_id': 12},
+      'quiz_result': {'question_id': 'q6', 'correct': false, 'feedback': 'फिर देखें'},
+    }));
+    expect(a.nextQuestion!.id, 'q7');
+    expect(a.nextQuestion!.options, ['1398', '1500']);
+    expect(a.nextQuestion!.pramanId, 12);
+    expect(a.quizResult!.correct, isFalse);
+    final b = parseAskResponse(200, jsonEncode({'answer': 'x', 'next_question': null}));
+    expect(b.nextQuestion, isNull);
+    expect(b.quizResult, isNull);
+    expect(buildAskBody('q', const [], const []).containsKey('mode'), isFalse);
+    expect(buildAskBody('q', const [], const [], mode: 'gyan_charcha', quizReplyTo: 'q7'), containsPair('quiz_reply_to', 'q7'));
+  });
+
+  test('quiz loop: mode sent, next question shown, option reply carries quiz_reply_to, result kept', () async {
+    final fc = ModeClient([
+      const AiAnswer(answer: 'उत्तर १', cited: [], provider: 'p', nextQuestion: QuizQuestion(id: 'q1', text: 'प्रश्न १?', options: ['क', 'ख'])),
+      const AiAnswer(answer: 'ठीक', cited: [], provider: 'p', quizResult: QuizResult(questionId: 'q1', correct: true, feedback: 'सही')),
+    ]);
+    final ps = realPramans();
+    final c = ChatController(client: fc, store: ChatStore.fresh(), pramans: () => ps, version: () => 7);
+    await c.load();
+    expect(await c.startGyan(), isTrue);
+    await c.revealGyan();
+    expect(c.offerNext, isTrue, reason: 'local fallback: अगला प्रश्न');
+    await c.send('और पूछिए');
+    expect(fc.sent.last, ('gyan_charcha', null));
+    expect(c.quiz!.q.id, 'q1');
+    expect(c.messages.last.text, contains('प्रश्न १?'));
+    expect(c.offerNext, isFalse);
+    await c.answerQuiz('क');
+    expect(fc.sent.last, ('gyan_charcha', 'q1'));
+    expect(c.quiz, isNull);
+    expect(c.messages.last.quizResult!.correct, isTrue);
+    expect(c.offerNext, isTrue);
+    expect(fc.mode, isNull);
+    // a normal chat never sends the mode
+    c.newChat();
+    fc.script.add(const AiAnswer(answer: 'x', cited: [], provider: 'p'));
+    await c.send('सामान्य प्रश्न');
+    expect(fc.sent.last, (null, null));
+  });
+}
