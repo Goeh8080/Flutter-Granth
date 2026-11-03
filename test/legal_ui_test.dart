@@ -225,7 +225,9 @@ void main() {
 
   test('permissions page mentions every permission the manifest declares', () {
     final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
-    final declared = RegExp(r'<uses-permission[^>]*android:name="android\.permission\.([A-Z_]+)"').allMatches(manifest).map((m) => m.group(1)!).toSet();
+    final declared = RegExp(r'<uses-permission[^>]*android:name="android\.permission\.([A-Z_]+)"[^>]*>').allMatches(manifest)
+        // tools:node="remove" entries strip merged-in permissions; they are not declared.
+        .where((m) => !m.group(0)!.contains('tools:node="remove"')).map((m) => m.group(1)!).toSet();
     final text = legalBySlug('permissions')!.blocks().map((b) => '${b.text} ${b.items.join(' ')}').join('\n');
     for (final perm in declared) {
       // FOREGROUND_SERVICE_DATA_SYNC is described as "FOREGROUND_SERVICE … DATA_SYNC"
