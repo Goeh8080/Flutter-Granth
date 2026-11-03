@@ -14,8 +14,15 @@ val keyProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val hasReleaseKey = keyProps.getProperty("storeFile")?.let { file(it).exists() } == true
-if (!hasReleaseKey && gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
-    throw GradleException("key.properties missing: release must be signed with the upload key (no debug-key fallback)")
+// Google login needs the Satlok key's SHA on every build (debug too): never the default debug key.
+if (!hasReleaseKey && gradle.startParameter.taskNames.any { t ->
+        listOf("assemble", "bundle", "install", "package", "Release", "Debug").any { t.contains(it, ignoreCase = true) }
+    }) {
+    throw GradleException(
+        "android/key.properties (Satlok upload key) is missing or its storeFile does not exist. " +
+            "Every APK/AAB (debug and release) must be signed with it so Google login works; " +
+            "the default debug key is never used.",
+    )
 }
 
 android {
@@ -59,6 +66,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Same Satlok key as release (its SHA is registered for Google sign-in).
+            if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
+        }
         release {
             // Never the debug key: without key.properties the release build already failed above.
             if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
