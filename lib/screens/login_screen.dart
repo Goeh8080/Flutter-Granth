@@ -67,8 +67,13 @@ class _LoginGateState extends State<LoginGate> {
     super.dispose();
   }
 
+  bool _wasIn = FirebaseBridge.I.signedIn;
+
   void _auth() {
-    if (_show && FirebaseBridge.I.signedIn) {
+    final inNow = FirebaseBridge.I.signedIn;
+    if (_wasIn && !inNow) _skipped = false; // logged out: back to the login gate
+    _wasIn = inNow;
+    if (inNow && !LoginGate.seen) {
       _done();
     } else if (mounted) {
       setState(() {});

@@ -141,8 +141,38 @@ class FirebaseBridge extends ChangeNotifier {
   /// Google sign-in (optional). Returns null on success, or a Hindi message.
   Future<void>? _gInit;
 
+  /// Tests: stands in for the Google account picker + Firebase credential sign-in.
+  @visibleForTesting
+  Future<AccountInfo> Function()? debugAuthenticate;
+
+  /// Tests: stand-ins for FirebaseAuth.signOut / GoogleSignIn.signOut / disconnect; each call
+  /// is recorded in [debugSignOutCalls].
+  @visibleForTesting
+  Future<void> Function(String step)? debugSignOutStep;
+  @visibleForTesting
+  final List<String> debugSignOutCalls = [];
+
+  Future<void> _gReady() => _gInit ??= GoogleSignIn.instance.initialize(serverClientId: kGoogleWebClientId.isEmpty ? null : kGoogleWebClientId).catchError((Object e) {
+    _gInit = null;
+    throw e;
+  });
+
   Future<String?> signIn() async {
     if (busy) return null;
+    if (debugAuthenticate != null) {
+      busy = true;
+      error = null;
+      try {
+        await _setAccount(await debugAuthenticate!());
+        return null;
+      } catch (e) {
+        return error = 'Google लॉगिन नहीं हो सका ($e)।';
+      } finally {
+        busy = false;
+        stage = null;
+        notifyListeners();
+      }
+    }
     if (!ready) {
       log('sign-in: firebase not ready (google-services.json missing from build?)');
       return error = 'लॉगिन अभी उपलब्ध नहीं है (Firebase चालू नहीं)।';
@@ -153,10 +183,7 @@ class FirebaseBridge extends ChangeNotifier {
     try {
       final g = GoogleSignIn.instance;
       // google_sign_in 7.x: initialize() must be called exactly once per app run.
-      await (_gInit ??= g.initialize(serverClientId: kGoogleWebClientId.isEmpty ? null : kGoogleWebClientId).catchError((Object e) {
-        _gInit = null;
-        throw e;
-      }));
+      await _gReady();
       if (!g.supportsAuthenticate()) throw StateError('authenticate-unsupported');
       _stage('Google खाता चुनें…');
       final acc = await g.authenticate();
@@ -199,13 +226,39 @@ class FirebaseBridge extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Logout: Firebase and Google are both signed out (each step on its own, so one failure
+  /// never skips the other). If Google's signOut fails, disconnect clears the cached account so
+  /// the next "Sign in with Google" shows the account picker again (another account works too).
+  /// The local account is cleared and the login gate shows again.
   Future<void> signOut() async {
-    try {
-      if (ready) {
-        await FirebaseAuth.instance.signOut();
-        await GoogleSignIn.instance.signOut();
+    Future<bool> step(String name, Future<void> Function() real) async {
+      debugSignOutCalls.add(name);
+      try {
+        await (debugSignOutStep != null ? debugSignOutStep!(name) : real());
+        return true;
+      } catch (e) {
+        log('sign-out: $name: $e');
+        return false;
       }
-    } catch (_) {}
+    }
+
+    if (ready || debugSignOutStep != null) {
+      await step('firebase', () => FirebaseAuth.instance.signOut());
+      final ok = await step('google', () async {
+        await _gReady();
+        await GoogleSignIn.instance.signOut();
+      });
+      if (!ok) {
+        await step('disconnect', () async {
+          await _gReady();
+          await GoogleSignIn.instance.disconnect();
+        });
+      }
+    }
+    busy = false;
+    error = null;
+    stage = null;
+    await Store.I.remove(Store.kLoginSeen); // the login gate shows again
     await _setAccount(null);
   }
 
