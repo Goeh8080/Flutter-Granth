@@ -79,6 +79,7 @@ void main() {
       Analytics.I.named('app_open'); // CONTRACT §6.2: once per cold start, to /events and, once Firebase is up, as the optional GA4 app_open
       unawaited(FirebaseBridge.I.init().then((_) => Analytics.forward?.call('app_open', const {})).catchError((Object e) => log('init: firebase: $e')));
       runApp(GranthApp(ready: boot));
+      RemoteConfig.I.booted = true; // a config file read after its 2 s boot slot redraws the grids
       // Anonymous usage counts start after the first frame; they never delay the app.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Analytics.I.start();

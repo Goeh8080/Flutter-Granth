@@ -141,4 +141,37 @@ void main() {
     await t.pumpWidget(const SizedBox());
     await t.pump(const Duration(seconds: 10));
   });
+
+  // T184 item 4: a 3×3 grid must be 3 columns on the very FIRST frame after a cold start.
+  Future<void> firstFrame(WidgetTester t) async {
+    await t.binding.setSurfaceSize(const Size(412, 915));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(const GranthApp(splash: false, links: false));
+    await t.pump();
+  }
+
+  testWidgets('T184 cold start: saved 3 is the first frame (no 2×2 flash)', (t) async {
+    UiPrefs.I.setCols(Store.kGranthCols, 3);
+    await coldRestart(t);
+    AppNav.I.go('#/granths');
+    await firstFrame(t);
+    expect(find.byKey(const ValueKey('grid-3')), findsWidgets);
+    final ks = find.byType(KeyedSubtree).evaluate().map((e) => e.widget.key).whereType<ValueKey<String>>().map((k) => k.value).where((v) => v.startsWith('grid-')).toSet();
+    expect(ks, isNot(contains('grid-2')));
+    expect(UiPrefs.I.granthCols, 3);
+    await settle(t);
+  });
+
+  testWidgets('T184 cold start: admin default 3, no user value → 3 on the first frame; user 3 snaps to 2 on a 1|2 page', (t) async {
+    await coldRestart(t);
+    RemoteConfig.I.uiGridPages = {'granths': 3};
+    AppNav.I.go('#/granths');
+    await firstFrame(t);
+    expect(UiPrefs.I.granthCols, 3);
+    Store.I.setString(Store.kPramanCols, '3');
+    expect(UiPrefs.I.pageCols('pramans', Store.kPramanCols), 2, reason: 'user value snapped to the page');
+    RemoteConfig.I.uiGridForce = {'pramans': 1};
+    expect(UiPrefs.I.pageCols('pramans', Store.kPramanCols), 1, reason: 'force › user');
+    await settle(t);
+  });
 }

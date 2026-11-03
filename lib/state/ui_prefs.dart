@@ -41,7 +41,7 @@ class UiPrefs extends ChangeNotifier {
     int fit(int v) => allowed.contains(v) ? v : allowed.reduce((a, b) => (a - v).abs() <= (b - v).abs() ? a : b);
     if (forced != null) return fit(forced);
     final n = Store.I.getInt(key);
-    if (n != null && allowed.contains(n)) return n;
+    if (n != null && n >= 1) return fit(n); // the user's choice, snapped to this page
     return fallback < 1 ? fallback : fit(fallback);
   }
 

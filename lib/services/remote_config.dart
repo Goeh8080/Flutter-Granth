@@ -590,6 +590,7 @@ class RemoteConfig extends ChangeNotifier {
 
   /// Boot: apply the saved config (checked again — a damaged / tampered file is dropped).
   Future<void> load() async {
+    final early = _booting;
     try {
       final text = await Store.I.readText(fileName);
       if (text == null) return;
@@ -598,11 +599,16 @@ class RemoteConfig extends ChangeNotifier {
         unawaited(Store.I.remove(kEtag));
         return;
       }
-      _apply(p, notify: false);
+      // Boot timeout passed (slow disk): the first frames used defaults, so redraw now.
+      _apply(p, notify: !early());
     } catch (e) {
       log('remote config: load: $e');
     }
   }
+
+  /// True until runApp has drawn (main sets [booted]); a late [load] then notifies.
+  bool booted = false;
+  bool Function() get _booting => () => !booted;
 
   Future<bool>? _running;
 
