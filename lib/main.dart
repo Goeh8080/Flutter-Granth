@@ -18,6 +18,7 @@ import 'services/remote_config.dart';
 import 'services/shelves.dart';
 import 'services/events.dart';
 import 'services/storage.dart';
+import 'services/support.dart';
 import 'state/router.dart';
 import 'state/ui_prefs.dart';
 import 'theme/colors.dart';
@@ -62,6 +63,7 @@ void main() {
       }
       try {
         AppNav.onEnterAi = () => ChatController.I.enterFresh();
+        SupportService.uidOf = () => FirebaseBridge.I.uid;
         AppNav.I.restore();
       } catch (e) {
         log('init: restore: $e');
@@ -218,25 +220,34 @@ class _GranthAppState extends State<GranthApp> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'ग्रंथ प्रबंधन',
-    debugShowCheckedModeBanner: false,
-    scrollBehavior: const BoundedScrollBehavior(),
-    theme: buildTheme(),
-    builder: (context, child) => ValueListenableBuilder<double>(
-      // Settings → अक्षर का आकार: a factor on the phone's own text size, same 1.3 cap.
-      valueListenable: UiPrefs.I.textFactor,
-      builder: (context, f, zoomed) {
-        final phone = MediaQuery.textScalerOf(context);
-        final scaler = f == 1.0 ? phone.clamp(maxScaleFactor: 1.3) : TextScaler.linear(phone.scale(100) / 100 * f).clamp(minScaleFactor: 0.8, maxScaleFactor: 1.3);
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: scaler),
-          child: zoomed!,
-        );
-      },
-      // Whole-app pinch zoom like the original WebView (viewport maximum-scale=5).
-      child: AppZoom(child: child!),
+  Widget build(BuildContext context) => ListenableBuilder(
+    // the hidden iOS theme switches at once
+    listenable: UiPrefs.I,
+    builder: (context, _) => MaterialApp(
+      title: 'ग्रंथ प्रबंधन',
+      debugShowCheckedModeBanner: false,
+      scrollBehavior: const BoundedScrollBehavior(),
+      theme: buildTheme(ios: UiPrefs.I.theme == 'ios'),
+      builder: (context, child) => ValueListenableBuilder<double>(
+        // Settings → अक्षर का आकार: a factor on the phone's own text size, same 1.3 cap.
+        valueListenable: UiPrefs.I.textFactor,
+        builder: (context, f, zoomed) {
+          final phone = MediaQuery.textScalerOf(context);
+          final scaler = f == 1.0 ? phone.clamp(maxScaleFactor: 1.3) : TextScaler.linear(phone.scale(100) / 100 * f).clamp(minScaleFactor: 0.8, maxScaleFactor: 1.3);
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: scaler),
+            child: zoomed!,
+          );
+        },
+        // Whole-app pinch zoom like the original WebView (viewport maximum-scale=5).
+        child: AppZoom(child: child!),
+      ),
+      home: widget.splash
+          ? AnimatedSplash(
+              ready: widget.ready,
+              child: const LoginGate(child: HomeShell()),
+            )
+          : const LoginGate(child: HomeShell()),
     ),
-    home: widget.splash ? AnimatedSplash(ready: widget.ready, child: const LoginGate(child: HomeShell())) : const LoginGate(child: HomeShell()),
   );
 }

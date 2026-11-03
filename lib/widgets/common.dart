@@ -294,6 +294,14 @@ BoxDecoration cardDecoration(String look, {double radius = 12, bool dash = false
   if (dash && look != 'combo' && look != 'classic') return themedSurface(base, look: look);
   if (dash && look != 'combo') return base;
   switch (look) {
+    case 'ios':
+      // Hidden iOS theme: curved, soft, opaque (not liquid glass).
+      return BoxDecoration(
+        color: const Color(0xFFFFFEFB),
+        border: Border.all(color: const Color(0x1F7B5A3A), width: 0.6),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [BoxShadow(color: Color(0x124A2C0A), blurRadius: 22, offset: Offset(0, 8))],
+      );
     case 'glass':
       return BoxDecoration(
         color: Colors.white.withValues(alpha: 0.42),
@@ -371,6 +379,13 @@ BoxDecoration themedSurface(BoxDecoration base, {String? look, double maxRadius 
   final keep = keepColor && b is Border ? b.top.color : null;
   final color = base.color;
   switch (l) {
+    case 'ios':
+      return BoxDecoration(
+        color: keepColor ? color : const Color(0xFFFFFEFB),
+        border: w > 0 ? Border.all(color: keep ?? const Color(0x1F7B5A3A), width: w) : null,
+        borderRadius: radius(22),
+        boxShadow: const [BoxShadow(color: Color(0x124A2C0A), blurRadius: 22, offset: Offset(0, 8))],
+      );
     case 'glass':
       return BoxDecoration(
         color: Colors.white.withValues(alpha: math.max(0.42, (color?.a ?? 1) * 0.72)),

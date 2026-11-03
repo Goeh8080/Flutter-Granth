@@ -64,63 +64,69 @@ void main() {
   });
 
   group('support tickets (CONTRACT §5.1)', () {
-    test('create → 201, then mine lists tickets with the IST token label; reply and ack use the exact shapes', () async {
+    test('§20: create → status lists tickets + threads; send / thread / ack use the exact shapes', () async {
+      final iid = 'a' * 32;
       final api = Api([
         (201, {'id': 12, 'token': 3, 'date': '2026-10-31', 'status': 'open', 'created_at': '2026-10-31T09:35:21Z'}),
         (
           200,
           {
-            'items': [
+            'tickets': [
               {
                 'id': 12,
                 'token': 3,
                 'date': '2026-10-31',
                 'subject': 'PDF',
-                'message': 'नहीं खुलती',
+                'question': 'नहीं खुलती',
                 'status': 'open',
-                'has_new_reply': true,
+                'last_reply_at': '2026-10-31T10:00:00Z',
+                'replied': true,
+                'unread_replies': 1,
                 'messages': [
-                  {'id': 1, 'from': 'user', 'text': 'नहीं खुलती', 'at': 'x'},
-                  {'id': 2, 'from': 'admin', 'text': 'देखते हैं', 'at': 'y'},
+                  {'id': 0, 'from': 'user', 'text': 'नहीं खुलती', 'at': '2026-10-31T09:35:21Z', 'read': true},
+                  {'id': 1, 'from': 'admin', 'text': 'देखते हैं', 'at': '2026-10-31T10:00:00Z', 'read': false},
                 ],
               },
             ],
-            'count': 1,
-            'unread': 1,
+            'unread_replies': 1,
           },
         ),
-        (201, {'ok': true, 'id': 3, 'at': 'z'}),
-        (200, {'items': [], 'count': 0, 'unread': 0}),
+        (201, {'from': 'user', 'text': 'धन्यवाद', 'at': '2026-10-31T10:05:00Z', 'ok': true, 'id': 2}),
         (200, {'ok': true, 'updated': 1}),
-        (200, {'items': [], 'count': 0, 'unread': 0}),
+        (409, {'error': 'closed'}),
       ]);
       final dio = Dio(BaseOptions(responseType: ResponseType.plain, validateStatus: (s) => s != null && s < 600))..httpClientAdapter = api;
-      final s = SupportService(dio: dio, base: 'https://h.example', iid: () => 'a' * 32, enabled: true);
+      final s = SupportService(dio: dio, base: 'https://h.example', iid: () => iid, enabled: true);
       expect(await s.create('x'), isNotNull, reason: 'message must be 2..2000');
       expect(api.seen, isEmpty);
       expect(await s.create('PDF नहीं खुलती', subject: 'PDF'), isNull);
-      expect(api.seen[0].method, 'POST');
       expect(api.seen[0].path, 'https://h.example/support/tickets');
       final b = api.bodies[0] as Map;
-      expect(b['iid'], 'a' * 32);
+      expect(b['iid'], iid);
       expect(b['message'], 'PDF नहीं खुलती');
-      expect(b['subject'], 'PDF');
-      expect(b.containsKey('app_version'), isTrue);
-      expect(api.seen[1].uri.toString(), 'https://h.example/support/tickets/mine?iid=${'a' * 32}');
-      expect(s.tickets.single.label, 'टोकन #3 · 31-10-2026');
-      expect(s.tickets.single.hasNewReply, isTrue);
-      expect(s.tickets.single.messages.last.fromAdmin, isTrue);
+      expect(api.seen[1].uri.toString(), 'https://h.example/support/status?install_id=$iid');
+      final t = s.tickets.single;
+      expect(t.label, 'टोकन #3 · 31-10-2026');
+      expect(t.message, 'नहीं खुलती');
+      expect(t.unreadReplies, 1);
+      expect(t.replied, isTrue);
+      expect(t.messages.first.id, 0);
+      expect(t.messages.last.fromAdmin, isTrue);
       expect(s.unread, 1);
-      expect(await s.reply(12, 'धन्यवाद'), isNull);
+      expect(await s.send(12, 'धन्यवाद'), isNull);
       expect(api.seen[2].path, 'https://h.example/support/tickets/12/messages');
-      expect(api.bodies[2], {'iid': 'a' * 32, 'message': 'धन्यवाद'});
+      expect(api.bodies[2], {'install_id': iid, 'text': 'धन्यवाद'});
+      expect(s.byId(12)!.messages.last.text, 'धन्यवाद');
       await s.ack([12]);
-      final ackAt = api.seen.indexWhere((o) => o.path.endsWith('/support/tickets/ack'));
-      expect(ackAt, greaterThan(0));
-      expect(api.bodies[ackAt], {
-        'iid': 'a' * 32,
+      expect(api.seen[3].path, 'https://h.example/support/tickets/ack');
+      expect(api.bodies[3], {
+        'iid': iid,
         'ids': [12],
       });
+      expect(s.unread, 0);
+      expect(s.byId(12)!.messages[1].read, isTrue);
+      expect(await s.send(12, 'और'), contains('बंद'));
+      expect(s.byId(12)!.open, isFalse);
     });
 
     test('errors read in Hindi: 429 limit, 409 closed, 503 unavailable, no network', () {
@@ -128,6 +134,9 @@ void main() {
       expect(SupportService.errorText(409, ''), contains('बंद'));
       expect(SupportService.errorText(503, ''), contains('उपलब्ध नहीं'));
       expect(SupportService.errorText(null, ''), contains('नेटवर्क'));
+      expect(SupportService.errorText(400, {'error': 'bad_token'}), contains('टोकन'));
+      expect(SupportService.errorText(404, {'error': 'not_found'}), contains('नहीं मिला'));
+      expect(SupportService.errorText(413, {'error': 'too_large'}), contains('लंबा'));
     });
   });
 

@@ -485,6 +485,9 @@ class TermsInfo {
 const kTermsUrl = 'https://granth-management.web.app/terms';
 const kPrivacyUrl = 'https://granth-management.web.app/privacy';
 
+/// Play account-deletion page (also entered in Play Console → Data safety).
+const kDeleteAccountUrl = 'https://granth-management.web.app/delete-account';
+
 TermsInfo parseTerms(Map<String, dynamic>? ui) {
   final t = ui?['terms'];
   if (t is! Map) return TermsInfo.fallback;

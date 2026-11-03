@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 /// Exact palette from the original web app (`@layer theme` in index.html).
@@ -73,20 +74,23 @@ class GText {
       );
 }
 
-ThemeData buildTheme() {
+/// [ios]: the hidden iOS theme — Cupertino page slides, no ink splash, rounder dialogs.
+ThemeData buildTheme({bool ios = false}) {
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(seedColor: GColors.maroon, primary: GColors.maroon, surface: GColors.cream),
     scaffoldBackgroundColor: GColors.cream,
     fontFamily: GFonts.sans,
     fontFamilyFallback: GFonts.sansFallback,
-    splashFactory: InkSparkle.splashFactory,
+    splashFactory: ios ? NoSplash.splashFactory : InkSparkle.splashFactory,
   );
   return base.copyWith(
     textTheme: base.textTheme.apply(bodyColor: GColors.text, displayColor: GColors.text, fontFamily: GFonts.sans),
     textSelectionTheme: const TextSelectionThemeData(cursorColor: GColors.saffron, selectionHandleColor: GColors.saffron),
-    pageTransitionsTheme: const PageTransitionsTheme(builders: {
-      TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+    pageTransitionsTheme: PageTransitionsTheme(builders: {
+      TargetPlatform.android: ios ? const CupertinoPageTransitionsBuilder() : const FadeForwardsPageTransitionsBuilder(),
     }),
+    dialogTheme: ios ? DialogThemeData(backgroundColor: const Color(0xFFFFFEFB), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))) : null,
+    bottomSheetTheme: ios ? const BottomSheetThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(26)))) : null,
   );
 }

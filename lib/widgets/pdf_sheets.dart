@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../screens/support_chat.dart';
 import '../screens/home_shell.dart' show SyncStrip;
 import '../models/models.dart';
 import '../services/api.dart' show kPlayStoreUrl;
@@ -689,6 +690,7 @@ class _Settings extends StatefulWidget {
 class _SettingsState extends State<_Settings> {
   int _taps = 0;
   bool _looks = false;
+  bool _themes = false;
   String _version = '1.0.0';
 
   @override
@@ -849,7 +851,7 @@ class _SettingsState extends State<_Settings> {
                     onTap: () => AppNav.I.openLink('#/account'),
                   ),
                   if (RemoteConfig.I.supportEnabled)
-                    Pill(key: const ValueKey('set-support'), direct: true, icon: 'message-circle', label: 'सहायता / टिकट', onTap: () => AppNav.I.openLink('#/support')),
+                    const SupportPills(pillKey: ValueKey('set-support')),
                 ]),
               ],
               if (widget.section == 'ai') ...[
@@ -860,7 +862,7 @@ class _SettingsState extends State<_Settings> {
               ],
               if (widget.section == 'support') ...[
                 _section('support', 'सहायता', 'message-circle'),
-                _block('प्रश्न या समस्या', [Pill(key: const ValueKey('set-support'), direct: true, icon: 'message-circle', label: 'सहायता / टिकट', onTap: () => AppNav.I.openLink('#/support'))]),
+                _block('प्रश्न या समस्या', [const SupportPills(pillKey: ValueKey('set-support'))]),
               ],
               if (widget.section == 'about') ...[
                 _section('about', 'जानकारी', 'info'),
@@ -890,6 +892,7 @@ class _SettingsState extends State<_Settings> {
                     onTap: () => setState(() {
                       _taps++;
                       if (_taps >= 5) _looks = true;
+                      if (_taps >= 7) _themes = true; // hidden theme picker
                     }),
                     child: Padding(
                       padding: const EdgeInsets.only(top: 8, bottom: 8),
@@ -907,6 +910,14 @@ class _SettingsState extends State<_Settings> {
                         ])
                       : const SizedBox(width: double.infinity),
                 ),
+                if (_themes)
+                  ListenableBuilder(
+                    listenable: UiPrefs.I,
+                    builder: (_, _) => _block('थीम', [
+                      for (final (id, title) in UiPrefs.themes)
+                        Pill(key: ValueKey('set-theme-$id'), direct: true, label: title, tone: UiPrefs.I.theme == id ? PillTone.maroon : PillTone.plain, onTap: () => UiPrefs.I.theme = id),
+                    ]),
+                  ),
               ],
             ],
           ),

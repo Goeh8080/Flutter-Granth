@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/catalog_store.dart';
+import '../services/file_actions.dart';
 import '../services/firebase_bridge.dart';
 import '../services/local_stats.dart';
 import '../services/remote_config.dart';
@@ -16,6 +17,7 @@ import '../state/toast.dart';
 import '../theme/colors.dart';
 import '../widgets/common.dart';
 import '../widgets/overlays.dart';
+import 'support_chat.dart';
 
 InputDecoration _box(String hint) => InputDecoration(
   hintText: hint,
@@ -115,6 +117,28 @@ class AccountPage extends StatelessWidget {
                         Toast.show('लॉगआउट हो गया');
                       },
                     ),
+                    const SizedBox(height: 10),
+                    SheetButton(
+                      key: const ValueKey('account-delete'),
+                      icon: 'trash-2',
+                      label: fb.busy && fb.stage != null ? fb.stage! : 'खाता हटाएँ',
+                      enabled: !fb.busy,
+                      onTap: () => confirmDeleteAccount(context),
+                    ),
+                    const SizedBox(height: 6),
+                    Center(
+                      child: TapTarget(
+                        key: const ValueKey('account-delete-web'),
+                        onTap: () => FileActions.openUrl(kDeleteAccountUrl),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Text(
+                            'वेब से खाता हटाने का तरीका',
+                            style: GText.sans(size: 13, color: GColors.saffronDark).copyWith(decoration: TextDecoration.underline, decorationColor: GColors.saffronDark),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
         ),
@@ -122,10 +146,7 @@ class AccountPage extends StatelessWidget {
         const AccountStats(),
         const SizedBox(height: 14),
         if (RemoteConfig.I.supportEnabled)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Pill(key: const ValueKey('account-support'), direct: true, icon: 'ticket', label: 'सहायता / टिकट', onTap: () => AppNav.I.openLink('#/support')),
-          ),
+          const Align(alignment: Alignment.centerLeft, child: SupportPills(pillKey: ValueKey('account-support'), icon: 'ticket')),
       ]);
     },
   );
@@ -259,6 +280,32 @@ class AccountStats extends StatelessWidget {
   }
 }
 
+/// "खाता हटाएँ": confirm, then [FirebaseBridge.deleteAccount] (login gate shows after).
+Future<void> confirmDeleteAccount(BuildContext context) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      key: const ValueKey('account-delete-dialog'),
+      title: Text('खाता हटाएँ?', style: GText.sans(size: 18, weight: FontWeight.w700, color: GColors.maroon)),
+      content: Text(
+        'आपका Google खाता इस ऐप से हटा दिया जाएगा, आपके सहायता टिकट और ऐप से जुड़ा डेटा सर्वर से मिटा दिया जाएगा। यह वापस नहीं होगा।',
+        style: GText.sans(size: 14.5, height: 1.5),
+      ),
+      actions: [
+        TextButton(key: const ValueKey('account-delete-cancel'), onPressed: () => Navigator.pop(c, false), child: const Text('रद्द करें')),
+        TextButton(
+          key: const ValueKey('account-delete-confirm'),
+          onPressed: () => Navigator.pop(c, true),
+          child: Text('हाँ, हटाएँ', style: GText.sans(size: 15, weight: FontWeight.w700, color: GColors.maroon)),
+        ),
+      ],
+    ),
+  );
+  if (ok != true) return;
+  final e = await FirebaseBridge.I.deleteAccount();
+  Toast.show(e ?? 'खाता हटा दिया गया');
+}
+
 class SupportPage extends StatefulWidget {
   const SupportPage({super.key});
   @override
@@ -268,9 +315,7 @@ class SupportPage extends StatefulWidget {
 class _SupportPageState extends State<SupportPage> {
   final _msg = TextEditingController();
   final _subject = TextEditingController();
-  final _reply = TextEditingController();
   bool _sending = false;
-  int? _open;
 
   @override
   void initState() {
@@ -282,7 +327,6 @@ class _SupportPageState extends State<SupportPage> {
   void dispose() {
     _msg.dispose();
     _subject.dispose();
-    _reply.dispose();
     super.dispose();
   }
 
@@ -301,20 +345,6 @@ class _SupportPageState extends State<SupportPage> {
     _subject.clear();
     final t = SupportService.I.tickets.isEmpty ? null : SupportService.I.tickets.first;
     Toast.show(t == null ? 'टिकट भेज दिया गया' : 'टिकट भेज दिया गया · ${t.label}');
-  }
-
-  Future<void> _toggle(SupportTicket t) async {
-    setState(() => _open = _open == t.id ? null : t.id);
-    if (t.hasNewReply) await SupportService.I.ack([t.id]);
-  }
-
-  Future<void> _sendReply(SupportTicket t) async {
-    final e = await SupportService.I.reply(t.id, _reply.text);
-    if (e != null) {
-      Toast.show(e);
-      return;
-    }
-    _reply.clear();
   }
 
   @override
@@ -348,6 +378,8 @@ class _SupportPageState extends State<SupportPage> {
                 style: GText.sans(size: 16, weight: FontWeight.w700, color: GColors.maroon),
               ),
             ),
+            UnreadBadge(key: const ValueKey('support-mine-badge'), count: s.unread),
+            const SizedBox(width: 6),
             Pill(key: const ValueKey('support-refresh'), direct: true, icon: 'refresh-cw', label: s.loading ? '…' : 'ताज़ा करें', onTap: s.refresh),
           ],
         ),
@@ -359,63 +391,8 @@ class _SupportPageState extends State<SupportPage> {
             style: GText.sans(size: 13.5, color: GColors.muted),
           ),
         if (s.error == null && !s.loading && s.tickets.isEmpty) Text('अभी कोई टिकट नहीं है।', style: GText.sans(size: 13.5, color: GColors.muted)),
-        for (final t in s.tickets)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: FrostCard(
-              key: ValueKey('ticket-${t.id}'),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TapTarget(
-                    key: ValueKey('ticket-head-${t.id}'),
-                    onTap: () => _toggle(t),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                t.label,
-                                style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon),
-                              ),
-                              Text(
-                                t.subject.isEmpty ? t.message : t.subject,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: GText.sans(size: 13.5, color: GColors.brown),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (t.hasNewReply) Pill(key: ValueKey('ticket-new-${t.id}'), label: 'नया जवाब', tone: PillTone.maroon),
-                        const SizedBox(width: 6),
-                        Text(t.open ? 'खुला' : 'बंद', style: GText.sans(size: 12, color: GColors.muted)),
-                      ],
-                    ),
-                  ),
-                  if (_open == t.id) ...[
-                    const SizedBox(height: 8),
-                    for (final m in t.messages)
-                      Align(
-                        alignment: m.fromAdmin ? Alignment.centerLeft : Alignment.centerRight,
-                        child: Container(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(color: m.fromAdmin ? GColors.cream : GColors.creamDark, borderRadius: BorderRadius.circular(12)),
-                          child: Text('${m.fromAdmin ? 'एडमिन: ' : ''}${m.text}', style: GText.sans(size: 14, height: 1.4)),
-                        ),
-                      ),
-                    if (t.open) ...[
-                      TextField(key: ValueKey('ticket-reply-${t.id}'), controller: _reply, minLines: 1, maxLines: 4, maxLength: 2000, style: GText.sans(size: 14.5), decoration: _box('जवाब लिखें')),
-                      SheetButton(key: ValueKey('ticket-reply-send-${t.id}'), label: 'भेजें', primary: true, onTap: () => _sendReply(t)),
-                    ],
-                  ],
-                ],
-              ),
-            ),
-          ),
+        // T184 item 6: no reply form here; a tap opens the two-way chat.
+        for (final t in s.tickets) TicketRow(t: t),
       ]);
     },
   );

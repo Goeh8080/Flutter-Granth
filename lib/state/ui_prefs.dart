@@ -28,7 +28,17 @@ class UiPrefs extends ChangeNotifier {
   }
   static final UiPrefs I = UiPrefs._();
 
-  String get look => Store.I.getString(Store.kLook) ?? 'classic';
+  /// The card style; the hidden iOS theme ([theme] == 'ios') brings its own soft cards.
+  String get look => theme == 'ios' ? 'ios' : (Store.I.getString(Store.kLook) ?? 'classic');
+
+  /// Hidden app theme (Settings → tap the version 7 times): 'default' | 'ios'. Persisted.
+  static const themes = [('default', 'डिफ़ॉल्ट'), ('ios', 'iOS')];
+  String get theme => Store.I.getString(Store.kTheme) == 'ios' ? 'ios' : 'default';
+  set theme(String v) {
+    Store.I.setString(Store.kTheme, v == 'ios' ? 'ios' : 'default');
+    notifyListeners();
+  }
+
   set look(String v) {
     Store.I.setString(Store.kLook, v);
     notifyListeners();
@@ -186,7 +196,7 @@ class UiPrefs extends ChangeNotifier {
   /// Settings → "सेटिंग रीसेट करें": every setting back to its default. Downloaded granths,
   /// pages, gallery and PDFs are never touched.
   static const settingKeys = [
-    Store.kLook, Store.kUiCols, Store.kTopicCols, Store.kGranthCols, Store.kPramanCols, Store.kGalleryCols, //
+    Store.kLook, Store.kTheme, Store.kUiCols, Store.kTopicCols, Store.kGranthCols, Store.kPramanCols, Store.kGalleryCols, //
     Store.kPdfStyle, Store.kTextSize, Store.kWifiOnly, Store.kAutoDownload, Store.kAutoSync, Store.kKeepAwake, Store.kAnimations, Store.kTaskbar,
   ];
   Future<void> resetAll() async {

@@ -20,6 +20,7 @@ import '../state/toast.dart';
 import 'analytics.dart';
 import 'remote_config.dart';
 import 'storage.dart';
+import 'support.dart';
 import '../util/log.dart';
 
 /// Optional Web OAuth client id (when google-services.json carries none).
@@ -145,6 +146,13 @@ class FirebaseBridge extends ChangeNotifier {
   @visibleForTesting
   Future<AccountInfo> Function()? debugAuthenticate;
 
+  /// Tests: stands in for each real Google/Firebase step of [signIn] ('authenticate' → id token,
+  /// 'credential' / 'provider' → AccountInfo, 'signOut', 'disconnect'); calls go to [debugGoogleCalls].
+  @visibleForTesting
+  Future<Object?> Function(String step)? debugGoogleStep;
+  @visibleForTesting
+  final List<String> debugGoogleCalls = [];
+
   /// Tests: stand-ins for FirebaseAuth.signOut / GoogleSignIn.signOut / disconnect; each call
   /// is recorded in [debugSignOutCalls].
   @visibleForTesting
@@ -157,13 +165,19 @@ class FirebaseBridge extends ChangeNotifier {
     throw e;
   });
 
+  /// Bumped by [signOut]/[deleteAccount]: a sign-in that finishes after them is ignored.
+  int _gen = 0;
+
   Future<String?> signIn() async {
     if (busy) return null;
+    final gen = ++_gen;
     if (debugAuthenticate != null) {
       busy = true;
       error = null;
       try {
-        await _setAccount(await debugAuthenticate!());
+        final a = await debugAuthenticate!();
+        if (gen != _gen) return null; // logged out meanwhile
+        await _setAccount(a);
         return null;
       } catch (e) {
         return error = 'Google लॉगिन नहीं हो सका ($e)।';
@@ -173,39 +187,92 @@ class FirebaseBridge extends ChangeNotifier {
         notifyListeners();
       }
     }
-    if (!ready) {
+    final fake = debugGoogleStep;
+    if (fake == null && !ready) {
       log('sign-in: firebase not ready (google-services.json missing from build?)');
       return error = 'लॉगिन अभी उपलब्ध नहीं है (Firebase चालू नहीं)।';
     }
     busy = true;
     error = null;
     _stage('Google से जुड़ रहे हैं…');
-    try {
-      final g = GoogleSignIn.instance;
-      // google_sign_in 7.x: initialize() must be called exactly once per app run.
-      await _gReady();
-      if (!g.supportsAuthenticate()) throw StateError('authenticate-unsupported');
-      _stage('Google खाता चुनें…');
-      final acc = await g.authenticate();
-      _stage('खाता मिला, लॉगिन हो रहा है…');
-      final idToken = acc.authentication.idToken;
+    debugGoogleCalls.clear();
+    Future<T> step<T>(String name, Future<T> Function() real) async {
+      debugGoogleCalls.add(name);
+      return fake != null ? (await fake(name)) as T : real();
+    }
+
+    // Picker → id token → Firebase credential sign-in (also creates the user on first sign-in).
+    Future<AccountInfo> viaPicker() async {
+      final idToken = await step<String?>('authenticate', () async {
+        final g = GoogleSignIn.instance;
+        // google_sign_in 7.x: initialize() must be called exactly once per app run.
+        await _gReady();
+        if (!g.supportsAuthenticate()) throw StateError('authenticate-unsupported');
+        _stage('Google खाता चुनें…');
+        final acc = await g.authenticate();
+        _stage('खाता मिला, लॉगिन हो रहा है…');
+        return acc.authentication.idToken;
+      });
       if (idToken == null || idToken.isEmpty) throw StateError('no-id-token');
-      // signInWithCredential also creates the Firebase user on the first sign-in (sign-up).
-      final cred = await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken)).timeout(const Duration(seconds: 30));
-      final u = cred.user;
-      if (u == null) throw StateError('no-firebase-user');
-      await _setAccount(AccountInfo(email: u.email ?? acc.email, name: u.displayName ?? acc.displayName ?? '', photo: u.photoURL ?? acc.photoUrl ?? ''));
-      return null;
-    } on GoogleSignInException catch (e) {
-      log('google sign-in failed: code=${e.code.name} desc=${e.description}');
-      recordError(e, StackTrace.current);
-      // Round-2: "canceled" is also what Credential Manager reports when the account was picked
-      // but Google refused the token (OAuth client / SHA / consent problems), so it is shown too.
-      final desc = (e.description ?? '').trim();
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        return error = 'लॉगिन पूरा नहीं हुआ (canceled${desc.isEmpty ? '' : ': $desc'})। दोबारा प्रयास करें।';
+      return step<AccountInfo>('credential', () async {
+        final cred = await FirebaseAuth.instance.signInWithCredential(GoogleAuthProvider.credential(idToken: idToken)).timeout(const Duration(seconds: 30));
+        final u = cred.user;
+        if (u == null) throw StateError('no-firebase-user');
+        return AccountInfo(email: u.email ?? '', name: u.displayName ?? '', photo: u.photoURL ?? '');
+      });
+    }
+
+    String code(GoogleSignInException e) {
+      final d = (e.description ?? '').trim();
+      return '${e.code.name}${d.isEmpty ? '' : ': $d'}';
+    }
+
+    try {
+      AccountInfo a;
+      try {
+        a = await viaPicker();
+      } on GoogleSignInException catch (e) {
+        final first = code(e);
+        log('google sign-in failed: $first');
+        recordError(e, StackTrace.current);
+        // "canceled" / "[16] Account reauth failed": a stale cached Google account. Clear it, retry once.
+        final stale = e.code == GoogleSignInExceptionCode.canceled || first.contains('[16]') || first.toLowerCase().contains('reauth');
+        if (!stale) return error = 'Google लॉगिन नहीं हो सका ($first)। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
+        for (final n in ['signOut', 'disconnect']) {
+          try {
+            await step<void>(n, () async => n == 'signOut' ? GoogleSignIn.instance.signOut() : GoogleSignIn.instance.disconnect());
+          } catch (x) {
+            log('sign-in retry: $n: $x');
+          }
+        }
+        _stage('दोबारा कोशिश हो रही है…');
+        try {
+          a = await viaPicker();
+        } on GoogleSignInException catch (e2) {
+          final second = code(e2);
+          log('google sign-in retry failed: $second; trying Firebase provider sign-in');
+          _stage('दूसरे तरीके से लॉगिन हो रहा है…');
+          try {
+            a = await step<AccountInfo>('provider', () async {
+              final cred = await FirebaseAuth.instance.signInWithProvider(GoogleAuthProvider());
+              final u = cred.user;
+              if (u == null) throw StateError('no-firebase-user');
+              return AccountInfo(email: u.email ?? '', name: u.displayName ?? '', photo: u.photoURL ?? '');
+            });
+          } on FirebaseAuthException catch (e3) {
+            return error = 'Google लॉगिन नहीं हो सका ($first → $second → provider: ${e3.code})। दोबारा प्रयास करें।';
+          } catch (e3) {
+            return error = 'Google लॉगिन नहीं हो सका ($first → $second → provider: $e3)। दोबारा प्रयास करें।';
+          }
+        }
       }
-      return error = 'Google लॉगिन नहीं हो सका (${e.code.name}${desc.isEmpty ? '' : ': $desc'})। कृपया इंटरनेट जाँचें और दोबारा प्रयास करें।';
+      if (gen != _gen) {
+        // Logged out while the picker / token exchange was running: don't log back in.
+        if (fake == null) unawaited(FirebaseAuth.instance.signOut().catchError((Object _) {}));
+        return null;
+      }
+      await _setAccount(a);
+      return null;
     } on FirebaseAuthException catch (e) {
       log('firebase auth sign-in failed: code=${e.code} msg=${e.message}');
       recordError(e, StackTrace.current);
@@ -231,6 +298,7 @@ class FirebaseBridge extends ChangeNotifier {
   /// the next "Sign in with Google" shows the account picker again (another account works too).
   /// The local account is cleared and the login gate shows again.
   Future<void> signOut() async {
+    _gen++; // an in-flight sign-in result is dropped
     Future<bool> step(String name, Future<void> Function() real) async {
       debugSignOutCalls.add(name);
       try {
@@ -260,6 +328,92 @@ class FirebaseBridge extends ChangeNotifier {
     stage = null;
     await Store.I.remove(Store.kLoginSeen); // the login gate shows again
     await _setAccount(null);
+  }
+
+  /// Tests: stands in for each delete step ('server', 'firebase', 'reauth', 'disconnect');
+  /// throw `FirebaseAuthException(code: 'requires-recent-login')` from 'firebase' to test reauth.
+  @visibleForTesting
+  Future<void> Function(String step)? debugDeleteStep;
+  @visibleForTesting
+  final List<String> debugDeleteCalls = [];
+
+  /// Test hook: the id token sent to /account/delete when [debugDeleteStep] is set.
+  String? debugIdToken = 'tok';
+
+  /// Play account deletion ("खाता हटाएँ"): server data (POST /account/delete; a 404 while
+  /// the endpoint isn't live is fine), then the Firebase user (re-authenticating with Google
+  /// when Firebase wants a recent login), then Google disconnect (revokes the app), then the
+  /// local account / tickets are cleared and the login gate shows. Returns null or a Hindi error.
+  Future<String?> deleteAccount() async {
+    if (debugDeleteStep == null && !ready) return 'खाता अभी हटाया नहीं जा सकता (Firebase चालू नहीं)।';
+    _gen++;
+    busy = true;
+    error = null;
+    _stage('खाता हटाया जा रहा है…');
+    Future<void> run(String name, Future<void> Function() real) {
+      debugDeleteCalls.add(name);
+      return debugDeleteStep != null ? debugDeleteStep!(name) : real();
+    }
+
+    try {
+      // §22: fresh token right before the call; on 200 the server already deleted the Auth user.
+      String? tok;
+      try {
+        tok = debugDeleteStep != null ? debugIdToken : (ready ? await FirebaseAuth.instance.currentUser?.getIdToken(true) : null);
+      } catch (e) {
+        log('account delete: token: $e');
+      }
+      debugDeleteCalls.add('server');
+      final r = await SupportService.I.deleteAccountData(tok);
+      if (r.status == 404) {
+        // Old server without §22: delete the Auth user from the app.
+        Future<void> fbDelete() => run('firebase', () async => FirebaseAuth.instance.currentUser?.delete());
+        try {
+          await fbDelete();
+        } on FirebaseAuthException catch (e) {
+          if (e.code != 'requires-recent-login') rethrow;
+          await run('reauth', () async {
+            await _gReady();
+            final acc = await GoogleSignIn.instance.authenticate();
+            final t = acc.authentication.idToken;
+            if (t == null || t.isEmpty) throw StateError('no-id-token');
+            await FirebaseAuth.instance.currentUser?.reauthenticateWithCredential(GoogleAuthProvider.credential(idToken: t));
+          });
+          await fbDelete();
+        }
+      } else if (r.status != 200) {
+        log('account delete: server ${r.status} ${r.code} data_deleted=${r.dataDeleted}');
+        return error = SupportService.deleteErrorText(r.status, r.code, dataDeleted: r.dataDeleted);
+      }
+      try {
+        await run('disconnect', () async {
+          await _gReady();
+          await GoogleSignIn.instance.disconnect();
+        });
+      } catch (e) {
+        log('account delete: disconnect: $e');
+      }
+      try {
+        if (debugDeleteStep == null) await FirebaseAuth.instance.signOut();
+      } catch (_) {}
+      SupportService.I.clearLocal();
+      busy = false;
+      stage = null;
+      await Store.I.remove(Store.kLoginSeen);
+      await _setAccount(null);
+      return null;
+    } on GoogleSignInException catch (e) {
+      log('account delete: reauth: ${e.code.name}');
+      return error = 'खाता हटाने के लिए Google से दोबारा पुष्टि ज़रूरी है। कृपया फिर कोशिश करें।';
+    } catch (e) {
+      log('account delete failed: $e');
+      recordError(e, StackTrace.current);
+      return error = 'खाता हटाया नहीं जा सका ($e)। कृपया फिर कोशिश करें।';
+    } finally {
+      busy = false;
+      stage = null;
+      notifyListeners();
+    }
   }
 
   /// A fresh Firebase ID token (for the server's Firebase verify), or null.

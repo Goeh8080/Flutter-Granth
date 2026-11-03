@@ -39,6 +39,12 @@ class GRoute {
     if (path.startsWith('/legal')) return GRoute(Panel.legal, legalPage: v('p'));
     for (final p in const ['settings', 'account', 'support', 'today']) {
       if (path.startsWith('/$p')) {
+        if (p == 'support') {
+          // T184: `#/support?t=<id>` one ticket's chat; `#/support?check=1` "स्थिति देखें".
+          final t = int.tryParse(v('t') ?? '');
+          if (t != null && t > 0) return GRoute(Panel.page, legalPage: 'support/ticket/$t');
+          if (v('check') != null) return const GRoute(Panel.page, legalPage: 'support/check');
+        }
         final s = p == 'settings' ? v('s') : null;
         return GRoute(Panel.page, legalPage: s == null || s.isEmpty ? p : 'settings/$s');
       }

@@ -34,6 +34,7 @@ class Store {
   static const kUiCols = 'ui-cols';
   static const kPdfStyle = 'pdf-style';
   static const kLook = 'granth-look';
+  static const kTheme = 'granth-theme';
   static const kLoginSeen = 'granth-login-seen';
 
   // Extra settings (not in the web app). Stored as text like the others.

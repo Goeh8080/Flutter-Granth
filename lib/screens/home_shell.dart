@@ -23,6 +23,7 @@ import '../widgets/common.dart';
 import '../widgets/pdf_sheets.dart';
 import '../services/firebase_bridge.dart';
 import 'account_screen.dart';
+import 'support_chat.dart';
 import 'today_screen.dart';
 import 'dashboard_screen.dart';
 import 'ai_screen.dart';
@@ -250,6 +251,8 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
       'account' => const AccountPage(key: ValueKey('page-account')),
       'today' => const TodayPage(key: ValueKey('page-today')),
       'support' when RemoteConfig.I.supportEnabled => const SupportPage(key: ValueKey('page-support')),
+      'support/check' when RemoteConfig.I.supportEnabled => const CheckStatusPage(key: ValueKey('page-support-check')),
+      final String p when p.startsWith('support/ticket/') && RemoteConfig.I.supportEnabled => TicketChatPage(key: ValueKey('page-$p'), id: int.parse(p.substring(15))),
       final String p when p.startsWith('settings/') => SettingsPage(key: ValueKey('page-$p'), section: p.substring(9)),
       _ => const SettingsPage(key: ValueKey('page-settings')),
     },

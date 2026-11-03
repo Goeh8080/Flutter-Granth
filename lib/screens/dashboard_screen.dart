@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../services/catalog_store.dart';
 import '../services/file_actions.dart';
+import '../services/remote_config.dart';
+import 'support_chat.dart';
 import '../state/router.dart';
 import '../state/ui_prefs.dart';
 import '../theme/colors.dart';
@@ -46,6 +48,7 @@ class _DashboardPanelState extends State<DashboardPanel> with LivePanel {
       const SizedBox(height: 14),
       Entry(index: 3, dx: dx, child: _DashCard(tone: Tone.gold, icon: 'image', count: s.pramans.length, label: 'प्रमाण', hash: '#/pramans')),
       Entry(index: 4, dx: dx, child: const _NoteCard()),
+      if (RemoteConfig.I.supportEnabled) Entry(index: 5, dx: dx, child: const SupportDashCard()),
     ]);
   }
 }
