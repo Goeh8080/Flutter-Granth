@@ -83,15 +83,17 @@ jobs:
           set -euo pipefail
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           echo "Using build-tools: $BT"
+          # apksigner skips v1 when the APK's minSdk is >= 24; --min-sdk-version 23 (signing tool only,
+          # the app's minSdk is unchanged) makes it add and check the v1 JAR signature too.
           for apk in dist/granth-universal.apk dist/granth-arm64-v8a.apk; do
             if ! "$BT/zipalign" -c -p 4 "$apk"; then
               "$BT/zipalign" -f -p 4 "$apk" "$apk.aligned" && mv "$apk.aligned" "$apk"
             fi
             "$BT/apksigner" sign --ks "$RUNNER_TEMP/satlok.keystore" --ks-pass env:KS_PASS \
               --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS \
-              --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true "$apk"
+              --min-sdk-version 23 --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true "$apk"
             rm -f "$apk.idsig"
-            out="$("$BT/apksigner" verify -v --print-certs "$apk")"
+            out="$("$BT/apksigner" verify -v --min-sdk-version 23 --print-certs "$apk")"
             echo "== $apk"; echo "$out" | grep -E "Verified using v[123] scheme|SHA-256 digest"
             for v in 1 2 3; do
               echo "$out" | grep -q "Verified using v$v scheme (APK Signature Scheme v$v): true" \
