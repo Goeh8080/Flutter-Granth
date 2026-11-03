@@ -47,6 +47,9 @@ android {
                 storeFile = file(keyProps.getProperty("storeFile"))
                 storePassword = keyProps.getProperty("storePassword")
                 keyAlias = keyProps.getProperty("keyAlias")
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
                 keyPassword = keyProps.getProperty("keyPassword")
             }
         }
