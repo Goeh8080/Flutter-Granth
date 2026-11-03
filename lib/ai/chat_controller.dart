@@ -110,17 +110,23 @@ class ChatController extends ChangeNotifier {
 
   List<ChatMsg> get messages => current?.messages ?? const [];
 
-  /// Loads the history list and reopens the newest chat (once).
+  /// Loads the history list (once). Opening AI always starts a NEW chat; old chats stay in
+  /// the history (Goutam t184: no resume of the last chat).
   Future<void> load() => _loading ??= _load();
 
   Future<void> _load() async {
     chats = await store.list();
-    if (current == null && chats.isNotEmpty) current = await store.load(chats.first.id);
     loaded = true;
     notifyListeners();
     // Build the retrieval index in the background so the first question is quick.
     if (pramans.isNotEmpty) Retriever.I.ensure(pramans, version).ignore();
     unawaited(knowledge.loadCached()); // the admin's notes (disk copy) are ready for the first question
+  }
+
+  /// The user entered AI afresh (tab / link, not Back from a praman): a new, empty chat.
+  void enterFresh() {
+    if (current == null && !sending) return;
+    newChat();
   }
 
   /// Starts an empty chat (the old one stays in the history).
@@ -418,7 +424,7 @@ class ChatController extends ChangeNotifier {
     }
     final now = DateTime.now().millisecondsSinceEpoch;
     final tail = g.cited.isEmpty ? '\n\n_इस उत्तर का प्रमाण अभी ऐप में नहीं मिला।_' : '';
-    c.messages.add(ChatMsg(role: 'assistant', text: '${g.answer}$tail${g.fromNote ? '\n\n_(admin का नोट)_' : ''}', cited: g.cited, at: now));
+    c.messages.add(ChatMsg(role: 'assistant', text: '${g.answer}$tail', cited: g.cited, at: now));
     c.updated = now;
     if (identical(c, current)) tick++;
     notifyListeners();

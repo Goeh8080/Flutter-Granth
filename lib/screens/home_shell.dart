@@ -42,6 +42,7 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
   final ScrollController _scroll = ScrollController();
   late final AnimationController _panelIn = AnimationController(vsync: this, duration: const Duration(milliseconds: 320), value: 1);
   final ValueNotifier<bool> _showTop = ValueNotifier(false);
+  final ValueNotifier<bool> _showDown = ValueNotifier(false);
   String _routeKey = '';
   bool _deckOpen = false;
   bool _exitOpen = false;
@@ -60,7 +61,12 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
     PdfQueue.I.finished.addListener(_onFinished);
     PdfNotify.I.attach();
     PdfNotify.I.hint.addListener(_onNotifHint);
-    _scroll.addListener(() => _showTop.value = _scroll.hasClients && _scroll.offset > 480);
+    _scroll.addListener(() {
+      final ai = AppNav.I.route.panel == Panel.ai;
+      _showTop.value = !ai && _scroll.hasClients && _scroll.offset > 480;
+      // t184: AI chat — scrolled up from the newest message → a floating ↓ button.
+      _showDown.value = ai && _scroll.hasClients && _scroll.position.hasContentDimensions && _scroll.position.maxScrollExtent - _scroll.offset > 320;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _restorePlace();
     });
@@ -341,6 +347,45 @@ class _HomeShellState extends State<HomeShell> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    if (r.panel == Panel.ai)
+                      Positioned(
+                        right: 16,
+                        bottom: 14,
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _showDown,
+                          builder: (context, show, _) => AnimatedScale(
+                            scale: show ? 1 : 0.6,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutBack,
+                            child: AnimatedOpacity(
+                              opacity: show ? 1 : 0,
+                              duration: const Duration(milliseconds: 180),
+                              child: IgnorePointer(
+                                ignoring: !show,
+                                child: Pressable(
+                                  key: const ValueKey('ai-to-bottom'),
+                                  onTap: () {
+                                    if (!_scroll.hasClients) return;
+                                    _scroll.animateTo(_scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 480), curve: Curves.easeOutCubic);
+                                  },
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: GColors.paper,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: GColors.creamDark),
+                                      boxShadow: [BoxShadow(color: GColors.shadow(0.18), blurRadius: 12, offset: const Offset(0, 4))],
+                                    ),
+                                    child: const GIcon('chevron-down', size: 24, color: GColors.maroon),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                     // Round 14: floating "Ask Tatv AI" on every screen except the AI chat itself.
                     if (_fabShown(r))
                       Positioned(

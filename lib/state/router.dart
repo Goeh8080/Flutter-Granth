@@ -203,7 +203,9 @@ class AppNav extends ChangeNotifier {
     }
     _forward = 1;
     _persistStack();
+    final b = route.panel;
     _set(h);
+    _maybeFreshAi(b);
   }
 
   /// `__granthOpenLink` — deep link: remember where we were.
@@ -211,7 +213,9 @@ class AppNav extends ChangeNotifier {
     if (_hash != h) _stack.add(_hash);
     _forward = 1;
     _persistStack();
+    final b = route.panel;
     _set(h);
+    _maybeFreshAi(b);
   }
 
   /// Route-level part of `__granthBack` (overlays are popped by the Navigator first).
@@ -249,6 +253,13 @@ class AppNav extends ChangeNotifier {
   void toggleMenu() {
     menuOpen = !menuOpen;
     notifyListeners();
+  }
+
+  /// Called when AI is entered forward (tab, link) from another screen — not on Back — so the
+  /// chat starts fresh while Back from a praman still returns to the same chat.
+  static VoidCallback? onEnterAi;
+  void _maybeFreshAi(Panel before) {
+    if (route.panel == Panel.ai && before != Panel.ai) onEnterAi?.call();
   }
 
   /// Hook for the shell to remember the scroll place (`yh()`).

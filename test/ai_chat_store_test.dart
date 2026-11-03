@@ -157,9 +157,12 @@ void main() {
       expect(fc.histories.last.map((t) => t.role), ['user', 'assistant']);
       expect(c.chats.length, 1);
       expect(c.chats.single.title, 'श्राद्ध क्यों नहीं करना चाहिए?');
-      // a "restart": a new controller reopens the newest chat
+      // a "restart": a new controller starts a NEW chat; the old one is in the history
       final c2 = make(FakeClient([]));
       await c2.load();
+      expect(c2.messages, isEmpty);
+      expect(c2.chats.length, 1);
+      await c2.open(c2.chats.single.id);
       expect(c2.messages.length, 4);
     });
 
@@ -177,6 +180,7 @@ void main() {
       // the question survives a restart too
       final c2 = make(FakeClient([]));
       await c2.load();
+      await c2.open(c2.chats.single.id);
       expect(c2.current!.pending, isTrue);
       await c.retry();
       expect(c.error, isNull);

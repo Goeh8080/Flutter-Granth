@@ -115,11 +115,13 @@ void main() {
       expect(t.takeException(), isNull);
       expect(find.byKey(const ValueKey('ai-refs')), findsOneWidget);
       expect(find.byKey(ValueKey('ai-ref-0-praman-${p.id}')), findsOneWidget, reason: 'cited first');
-      expect(find.byKey(const ValueKey('ai-ref-2-topic-9')), findsOneWidget);
+      expect(find.byKey(const ValueKey('ai-ref-1-topic-9')), findsOneWidget);
+      expect(find.byKey(const ValueKey('ai-ref-1-note-3')), findsNothing, reason: 't184: note refs are hidden');
+      expect(find.textContaining('नोट'), findsNothing);
       expect(find.byKey(const ValueKey('ai-send-correction')), findsNothing);
-      await t.ensureVisible(find.byKey(const ValueKey('ai-ref-2-topic-9')));
+      await t.ensureVisible(find.byKey(const ValueKey('ai-ref-1-topic-9')));
       await settle(t, 3);
-      await fingerTap(t, find.byKey(const ValueKey('ai-ref-2-topic-9')), wobble: Offset.zero);
+      await fingerTap(t, find.byKey(const ValueKey('ai-ref-1-topic-9')), wobble: Offset.zero);
       await settle(t, 4);
       expect(AppNav.I.hash, '#/pramans?topic=9');
       await t.pumpWidget(const SizedBox());

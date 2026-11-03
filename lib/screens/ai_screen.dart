@@ -389,6 +389,7 @@ class _AnswerBubbleState extends State<AnswerBubble> {
 
   /// Never shows a raw "id-467": known ids become the praman's name, unknown ones are dropped.
   String get _text => sanitizeAiText(msg.text, (id) => widget.find(id)?.title);
+  List<AiRef> get _shownRefs => [for (final r in msg.refs) if (r.type != 'note') r];
   String get _plain => markdownPlain(_text);
 
   Future<void> _copy() async {
@@ -470,14 +471,14 @@ class _AnswerBubbleState extends State<AnswerBubble> {
                 children: [
                   // Long-press selects a word and shows Copy; handles extend the selection.
                   SelectionArea(child: LightMarkdown(_text, size: 15.5)),
-                  if (msg.refs.isNotEmpty) ...[
+                  if (_shownRefs.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
                       'आधार प्रमाण',
                       style: GText.sans(size: 12.5, weight: FontWeight.w700, color: GColors.brown),
                     ),
                     const SizedBox(height: 6),
-                    AiRefPills(msg.refs, find: widget.find),
+                    AiRefPills(_shownRefs, find: widget.find),
                     for (final p in cited.take(2)) Padding(padding: const EdgeInsets.only(top: 8), child: PramanPreview(p)),
                   ] else if (cited.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -925,7 +926,7 @@ class _AiComposerState extends State<AiComposer> {
     child: SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -943,8 +944,9 @@ class _AiComposerState extends State<AiComposer> {
                       child: Container(
                         decoration: BoxDecoration(
                           color: GColors.paper,
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(color: GColors.saffron.withValues(alpha: 0.7), width: 1.3),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: GColors.saffron.withValues(alpha: 0.55), width: 1.2),
+                          boxShadow: [BoxShadow(color: GColors.shadow(0.06), blurRadius: 8, offset: const Offset(0, 2))],
                         ),
                         padding: const EdgeInsets.fromLTRB(16, 2, 12, 2),
                         child: Column(
@@ -1156,7 +1158,7 @@ class AiRefPills extends StatelessWidget {
         'praman' => 'प्रमाण',
         'topic' => 'विषय',
         'granth' => 'ग्रंथ',
-        _ => 'एडमिन नोट',
+        _ => 'स्रोत',
       };
     }
     return '${_icon(r.type)} $t';
@@ -1171,7 +1173,8 @@ class AiRefPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sorted = [...refs.where((r) => r.cited), ...refs.where((r) => !r.cited)];
+    final shown = refs.where((r) => r.type != 'note'); // t184: admin notes are never shown as refs
+    final sorted = [...shown.where((r) => r.cited), ...shown.where((r) => !r.cited)];
     return LayoutBuilder(
       builder: (context, c) => Wrap(
         key: const ValueKey('ai-refs'),

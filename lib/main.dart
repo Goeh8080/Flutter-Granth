@@ -24,6 +24,7 @@ import 'theme/colors.dart';
 import 'widgets/zoom.dart';
 import 'widgets/bounded_scroll.dart';
 import 'util/log.dart';
+import 'ai/chat_controller.dart';
 
 void main() {
   runZonedGuarded<Future<void>>(
@@ -60,6 +61,7 @@ void main() {
         log('init: remote config: $e');
       }
       try {
+        AppNav.onEnterAi = () => ChatController.I.enterFresh();
         AppNav.I.restore();
       } catch (e) {
         log('init: restore: $e');
