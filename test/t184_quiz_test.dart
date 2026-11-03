@@ -37,22 +37,22 @@ void main() {
     expect(b.nextQuestion, isNull);
     expect(b.quizResult, isNull);
     expect(buildAskBody('q', const [], const []).containsKey('mode'), isFalse);
-    expect(buildAskBody('q', const [], const [], mode: 'gyan_charcha', quizReplyTo: 'q7'), containsPair('quiz_reply_to', 'q7'));
+    expect(buildAskBody('q', const [], const [], mode: 'gyan_charcha', quizReplyTo: 'q7'), containsPair('quiz_reply_to', {'question_id': 'q7'}));
+    expect(stripNextQuestionTail('उत्तर।\n\n**अगला प्रश्न:** कबीर कौन?'), 'उत्तर।');
+    expect(stripNextQuestionTail('केवल उत्तर'), 'केवल उत्तर');
   });
 
   test('quiz loop: mode sent, next question shown, option reply carries quiz_reply_to, result kept', () async {
     final fc = ModeClient([
-      const AiAnswer(answer: 'उत्तर १', cited: [], provider: 'p', nextQuestion: QuizQuestion(id: 'q1', text: 'प्रश्न १?', options: ['क', 'ख'])),
+      const AiAnswer(answer: 'उत्तर १\n\n**अगला प्रश्न:** प्रश्न १?', cited: [], provider: 'p', nextQuestion: QuizQuestion(id: 'q1', text: 'प्रश्न १?', options: ['क', 'ख'])),
       const AiAnswer(answer: 'ठीक', cited: [], provider: 'p', quizResult: QuizResult(questionId: 'q1', correct: true, feedback: 'सही')),
     ]);
     final ps = realPramans();
     final c = ChatController(client: fc, store: ChatStore.fresh(), pramans: () => ps, version: () => 7);
     await c.load();
     expect(await c.startGyan(), isTrue);
-    await c.revealGyan();
-    expect(c.offerNext, isTrue, reason: 'local fallback: अगला प्रश्न');
-    await c.send('और पूछिए');
     expect(fc.sent.last, ('gyan_charcha', null));
+    expect(c.messages.where((m) => !m.isUser).first.text, 'उत्तर १', reason: 'the अगला प्रश्न tail is stripped');
     expect(c.quiz!.q.id, 'q1');
     expect(c.messages.last.text, contains('प्रश्न १?'));
     expect(c.offerNext, isFalse);
@@ -67,5 +67,20 @@ void main() {
     fc.script.add(const AiAnswer(answer: 'x', cited: [], provider: 'p'));
     await c.send('सामान्य प्रश्न');
     expect(fc.sent.last, (null, null));
+  });
+
+  test('worker returns no next_question → नया प्रश्न resends with the mode', () async {
+    final fc = ModeClient([
+      const AiAnswer(answer: 'अभी प्रश्न नहीं बना', cited: [], provider: 'p'),
+      const AiAnswer(answer: 'ठीक', cited: [], provider: 'p', nextQuestion: QuizQuestion(id: 'q2', text: 'प्रश्न २?')),
+    ]);
+    final ps = realPramans();
+    final c = ChatController(client: fc, store: ChatStore.fresh(), pramans: () => ps, version: () => 7);
+    await c.load();
+    await c.startGyan();
+    expect(c.offerNext, isTrue);
+    await c.nextQuestion();
+    expect(fc.sent.last, ('gyan_charcha', null));
+    expect(c.quiz!.q.id, 'q2');
   });
 }

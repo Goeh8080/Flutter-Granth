@@ -780,19 +780,12 @@ void main() {
           admin: syncWith(Fake()),
           knowledge: k,
         );
+        // w9: notes are AI-only — ज्ञान चर्चा asks the worker; no note text is shown.
         expect(await ctl.startGyan(), isTrue);
-        expect(ctl.messages.last.text, contains('गीता अध्याय 15 में परम पद क्या है'));
-        expect(
-          ctl.messages.last.text,
-          isNot(contains('सतलोक है')),
-          reason: 'the answer waits for the reveal',
-        );
-        expect(ctl.gyan, isNotNull);
-        await ctl.revealGyan();
-        expect(ctl.gyan, isNull);
-        expect(ctl.messages.last.text, contains('परम पद सतलोक है'));
-        expect(ctl.messages.last.cited, isNotEmpty);
-        expect(ctl.messages.last.cited.every((id) => Retriever.I.praman(id) != null), isTrue);
+        final all = ctl.messages.map((m) => m.text).join('\n');
+        expect(all, isNot(contains('सतलोक है')));
+        expect(all, isNot(contains('admin का नोट')));
+        expect(ctl.messages.first.text, kGyanStart);
       },
     );
 
@@ -806,10 +799,7 @@ void main() {
           knowledge: knowledgeWith(Fake()),
         );
         expect(await ctl.startGyan(), isTrue);
-        expect(ctl.messages.last.text, contains('किस ग्रंथ में'));
-        await ctl.revealGyan();
-        expect(ctl.messages.last.text, contains('में मिलता है'));
-        expect(ctl.messages.last.cited, isNotEmpty);
+        expect(ctl.messages.first.text, kGyanStart, reason: 'worker mode, no local note/topic question');
       },
     );
   });

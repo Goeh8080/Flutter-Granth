@@ -98,7 +98,7 @@ class AiFeedback extends ChangeNotifier {
     _setVote(key, -1);
     final q = queue
       ..removeWhere((e) => e['key'] == key)
-      ..add({'key': key, 'question': _cut(question, 500), 'answer': _cut(answer, 2000), 'reason': _cut(reason.trim(), 300), 'chat': chat, 'at': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000});
+      ..add({'key': key, 'question': _cut(question, 500), 'answer': _cut(answer, 2000), 'reason': _cut(reason.trim(), 300), 'chat': chat, 'at': DateTime.now().toUtc().toIso8601String()});
     while (q.length > kMaxQueue) {
       q.removeAt(0);
     }
@@ -113,7 +113,7 @@ class AiFeedback extends ChangeNotifier {
     final ck = '$key:c';
     final q = queue
       ..removeWhere((e) => e['key'] == ck)
-      ..add({'key': ck, 'kind': 'correction', 'question': _cut(question, 500), 'answer': _cut(answer, 2000), 'correction': _cut(correction.trim(), 2000), 'chat': chat, 'at': DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000});
+      ..add({'key': ck, 'kind': 'correction', 'question': _cut(question, 500), 'answer': _cut(answer, 2000), 'correction': _cut(correction.trim(), 2000), 'chat': chat, 'at': DateTime.now().toUtc().toIso8601String()});
     while (q.length > kMaxQueue) {
       q.removeAt(0);
     }
@@ -123,26 +123,38 @@ class AiFeedback extends ChangeNotifier {
 
   static String _cut(String s, int n) => s.runes.length > n ? String.fromCharCodes(s.runes.take(n)) : s;
 
-  /// Sends the queued reports; each one leaves the queue only after a 2xx (or a 400, which a
-  /// retry can never fix). Returns how many were sent.
+  /// The last report the server refused (400 / 413): it stays queued (never marked done) and
+  /// this status is kept so the UI / diagnostics can surface it. Null after a clean flush.
+  int? lastRejected;
+
+  /// `at` as an ISO-8601 UTC string (older queued items stored epoch seconds).
+  static Object? isoAt(Object? at) => at is num ? DateTime.fromMillisecondsSinceEpoch((at < 1e11 ? at * 1000 : at).toInt(), isUtc: true).toIso8601String() : at;
+
+  /// Sends the queued reports; each one leaves the queue only after a 2xx. A 400 / 413 is NOT
+  /// done: the report stays queued and [lastRejected] is set. Returns how many were sent.
   Future<int> flush() async {
     if (!enabled || _flushing || base.isEmpty) return 0;
     _flushing = true;
     var sent = 0;
+    lastRejected = null;
     try {
       for (final item in queue) {
         int? status;
         try {
           final r = await _dio.post<String>(
             '$base/ai/flags',
-            data: jsonEncode({'iid': iid, 'kind': 'thumbs_down', 'lang': 'hi', 'app_version': kAppVersion, ...item}..remove('key')),
+            data: jsonEncode({'iid': iid, 'kind': 'thumbs_down', 'lang': 'hi', 'app_version': kAppVersion, ...item, 'at': ?isoAt(item['at'])}..remove('key')),
             options: Options(contentType: 'application/json', headers: {if (appKey.isNotEmpty) 'X-App-Key': appKey}, responseType: ResponseType.plain, validateStatus: (s) => s != null && s < 600),
           );
           status = r.statusCode;
         } catch (_) {
           status = null;
         }
-        final done = status != null && ((status >= 200 && status < 300) || status == 400 || status == 413);
+        if (status == 400 || status == 413) {
+          lastRejected = status; // kept queued; the next report is still tried
+          continue;
+        }
+        final done = status != null && status >= 200 && status < 300;
         if (!done) break; // offline / endpoint missing / busy: keep the rest for later
         final rest = queue..removeWhere((e) => e['key'] == item['key']);
         Store.I.setString(kQueue, jsonEncode(rest));

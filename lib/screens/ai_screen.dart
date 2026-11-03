@@ -261,14 +261,7 @@ class _AiPanelState extends State<AiPanel> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 14),
-                  child: SheetButton(key: const ValueKey('quiz-next'), label: 'अगला प्रश्न', icon: 'chevron-right', primary: true, onTap: _gyan),
-                ),
-              ),
-            if (c.gyan != null && c.gyan!.convId == c.current?.id)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: SheetButton(key: const ValueKey('gyan-reveal'), label: 'उत्तर और प्रमाण देखें', icon: 'eye', primary: true, onTap: c.revealGyan),
+                  child: SheetButton(key: const ValueKey('quiz-next'), label: 'नया प्रश्न', icon: 'chevron-right', primary: true, onTap: () => c.nextQuestion()),
                 ),
               ),
           ],

@@ -216,7 +216,7 @@ Map<String, Object> buildAskBody(String question, List<AiTurn> history, List<Can
     'history': [for (final t in last) AiTurn(t.role, _cut(t.text.trim(), kHistoryTextMax)).toJson()],
     'candidates': [for (final c in candidates.take(kCandidatesMax)) c.toJson()],
     'mode': ?mode,
-    'quiz_reply_to': ?quizReplyTo,
+    if (quizReplyTo != null) 'quiz_reply_to': {'question_id': quizReplyTo},
   };
 }
 

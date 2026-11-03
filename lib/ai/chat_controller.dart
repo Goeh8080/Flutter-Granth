@@ -21,6 +21,13 @@ import 'retriever.dart';
 
 /// "क्या आप यह प्रश्न admin को भेजना चाहेंगे?" — shown under an answer the AI could not give.
 /// Shown when the model's reply was empty (or only ids).
+/// The user turn that asks the worker for a ज्ञान चर्चा question.
+const kGyanStart = 'ज्ञान चर्चा: मुझसे एक प्रश्न पूछिए';
+
+/// Worker w9: in ज्ञान चर्चा the answer ends with "**अगला प्रश्न:** …"; the app shows
+/// `next_question` as a card, so that tail is removed from the answer text.
+String stripNextQuestionTail(String s) => s.replaceFirst(RegExp(r'\s*\**\s*अगला प्रश्न\s*[:：]?\s*\**\s*[:：]?[\s\S]*$'), '').trimRight();
+
 const kEmptyAnswer = 'क्षमा करें, इस प्रश्न का सीधा उत्तर नहीं मिला।';
 
 class AdminOffer {
@@ -39,15 +46,6 @@ class AdminOffer {
 
 /// "ज्ञान चर्चा": a question taken from the admin's notes (or a praman's topic), its answer and the
 /// pramans — revealed on a tap.
-class GyanCard {
-  GyanCard({required this.convId, required this.question, required this.answer, required this.cited, this.fromNote = false});
-  final String convId;
-  final String question;
-  final String answer;
-  final List<int> cited; // praman ids
-  final bool fromNote;
-}
-
 class ChatController extends ChangeNotifier {
   ChatController({
     AiClient? client,
@@ -100,9 +98,6 @@ class ChatController extends ChangeNotifier {
   /// Set when the last answer could not answer the question; null otherwise (not saved with the chat).
   AdminOffer? offer;
 
-  /// A ज्ञान चर्चा question waiting for its answer to be revealed.
-  GyanCard? gyan;
-
   /// ज्ञान चर्चा quiz loop: chats in quiz mode (asks go out with `mode:"gyan_charcha"`).
   final Set<String> quizChats = {};
 
@@ -112,7 +107,7 @@ class ChatController extends ChangeNotifier {
   /// Whether to offer "अगला प्रश्न" (quiz chat, nothing pending, no server question).
   bool get offerNext {
     final id = current?.id;
-    return id != null && quizChats.contains(id) && !sending && gyan == null && quiz?.convId != id && messages.isNotEmpty && !messages.last.isUser;
+    return id != null && quizChats.contains(id) && !sending && error == null && quiz?.convId != id && messages.isNotEmpty && !messages.last.isUser;
   }
 
   /// Bumped when something was added to the open chat (the screen scrolls on it).
@@ -148,7 +143,6 @@ class ChatController extends ChangeNotifier {
     sending = false;
     error = null;
     offer = null;
-    gyan = null;
     quiz = null;
     tick++;
     notifyListeners();
@@ -166,7 +160,6 @@ class ChatController extends ChangeNotifier {
     sending = false;
     error = null;
     offer = null;
-    gyan = null;
     tick++;
     notifyListeners();
   }
@@ -188,7 +181,9 @@ class ChatController extends ChangeNotifier {
     final q = raw.trim();
     if (q.isEmpty || sending) return false;
     final now = DateTime.now().millisecondsSinceEpoch;
-    final c = current ??= Conversation(id: newChatId(), title: titleFor(q), created: now, updated: now);
+    final c = current ??= Conversation(id: newChatId(), title: _startQuiz ? 'ज्ञान चर्चा' : titleFor(q), created: now, updated: now);
+    if (_startQuiz) quizChats.add(c.id);
+    _startQuiz = false;
     c.messages.add(ChatMsg(role: 'user', text: q.length > kQuestionMax ? q.substring(0, kQuestionMax) : q, at: now));
     c.updated = now;
     error = null;
@@ -204,7 +199,6 @@ class ChatController extends ChangeNotifier {
   /// "फिर कोशिश करें": asks the last question again.
   Future<void> retry() async {
     offer = null;
-    gyan = null;
     final c = current;
     if (c == null || sending || !c.pending) return;
     error = null;
@@ -254,9 +248,12 @@ class ChatController extends ChangeNotifier {
       final now = DateTime.now().millisecondsSinceEpoch;
       // Never show raw candidate ids ("id-467"): the praman / note / topic name instead.
       final names = {for (final x in cands) x.id: x.granth.isEmpty ? x.title : '${x.title} (${x.granth})'};
+      final nq = inQuiz ? a.nextQuestion : null;
       var text = sanitizeAiText(a.answer, (id) => names[id], sourceName: (n) => n >= 1 && n <= cands.length ? names[cands[n - 1].id] : null);
-      if (text.isEmpty) text = kEmptyAnswer;
-      c.messages.add(
+      if (nq != null) text = stripNextQuestionTail(text); // the card shows it
+      if (text.isEmpty && nq == null) text = kEmptyAnswer;
+      if (text.isNotEmpty) {
+        c.messages.add(
         ChatMsg(
           role: 'assistant',
           text: text.length > kMaxMessageChars ? text.substring(0, kMaxMessageChars) : text,
@@ -268,10 +265,10 @@ class ChatController extends ChangeNotifier {
           quizResult: inQuiz ? a.quizResult : null,
         ),
       );
+      }
       // ज्ञान चर्चा: the AI asks the next question itself (quiz loop).
-      final nq = inQuiz ? a.nextQuestion : null;
       if (nq != null) {
-        c.messages.add(ChatMsg(role: 'assistant', text: '**अगला प्रश्न**\n\n❓ ${nq.text}', at: now + 1));
+        c.messages.add(ChatMsg(role: 'assistant', text: '**ज्ञान चर्चा — प्रश्न**\n\n❓ ${nq.text}${nq.options.isEmpty ? '' : '\n\n${[for (final (i, o) in nq.options.indexed) '${i + 1}. $o'].join('\n')}'}', at: now + 1));
         quiz = (convId: c.id, q: nq);
       }
       c.updated = now;
@@ -315,7 +312,6 @@ class ChatController extends ChangeNotifier {
     sending = false;
     error = null;
     offer = null;
-    gyan = null;
     quiz = null;
     quizChats.clear();
     loaded = false;
@@ -393,85 +389,30 @@ class ChatController extends ChangeNotifier {
 
   // ---- ज्ञान चर्चा (round 13) --------------------------------------------------------------
 
-  /// Asks a question from the admin's notes — else from a praman's topic — and keeps its answer
-  /// for [revealGyan]. False when there is nothing to ask.
+  bool _startQuiz = false;
+
+  /// ज्ञान चर्चा: asks the Tatv AI worker (`mode:"gyan_charcha"`) for a question. The worker
+  /// generates it from one app praman and returns it as `next_question`; the app never asks
+  /// questions from the admin's notes itself (notes are AI-only, w9 contract §2).
   Future<bool> startGyan() async {
     if (sending) return false;
-    final ps = pramans;
-    await knowledge.loadCached();
-    final notes = knowledge.notes;
-    GyanCard? card;
-    final id = current?.id ?? newChatId();
-    if (notes.isNotEmpty) {
-      final n = notes[rng.nextInt(notes.length)];
-      var cited = <int>[];
-      if (ps.isNotEmpty) {
-        final cs = await Retriever.I.candidates(ps, version, '${n.question} ${n.tags.join(' ')}', k: 3);
-        cited = [
-          for (final c in cs)
-            if (Retriever.I.praman(c.id) != null) c.id,
-        ];
-      }
-      card = GyanCard(convId: id, question: n.question, answer: n.answer, cited: cited, fromNote: true);
+    final c = current;
+    if (c != null && c.messages.isNotEmpty && !quizChats.contains(c.id)) newChat();
+    if (current != null) {
+      quizChats.add(current!.id);
     } else {
-      final withTopic = [
-        for (final p in ps)
-          if (p.topicTitle.trim().isNotEmpty && p.granthTitle.trim().isNotEmpty) p,
-      ];
-      if (withTopic.isEmpty) return false;
-      final p = withTopic[rng.nextInt(withTopic.length)];
-      await Retriever.I.ensure(ps, version);
-      final same = [
-        for (final x in withTopic)
-          if (x.topicId == p.topicId && x.id != p.id) x,
-      ].take(2);
-      final all = [p, ...same];
-      final names = {for (final x in all) x.granthTitle}.join(', ');
-      card = GyanCard(
-        convId: id,
-        question: 'इस बात का प्रमाण किस ग्रंथ में है — “${p.topicTitle.trim()}”?',
-        answer: 'इसका प्रमाण **$names** में मिलता है।',
-        cited: [for (final x in all) int.tryParse(x.id) ?? -1].where((e) => e > 0).toList(),
-      );
+      _startQuiz = true;
     }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final c = current ??= Conversation(id: id, title: 'ज्ञान चर्चा', created: now, updated: now);
-    quizChats.add(c.id);
-    if (quiz?.convId == c.id) quiz = null;
-    c.messages.add(ChatMsg(role: 'assistant', text: '**ज्ञान चर्चा**\n\n❓ ${card.question}\n\nपहले खुद सोचिए, फिर “उत्तर और प्रमाण देखें” दबाइए।', at: now));
-    c.updated = now;
-    offer = null;
-    gyan = card;
-    error = null;
-    tick++;
-    notifyListeners();
-    await _persist(c);
-    return true;
+    quiz = null;
+    final ok = await send(kGyanStart);
+    _startQuiz = false;
+    return ok;
   }
 
   /// Taps an option of the server's quiz question (sent with `quiz_reply_to`).
   Future<bool> answerQuiz(String option) => send(option);
 
-  /// "अगला प्रश्न": asks the Worker for the next question in quiz mode; when the Worker is not
-  /// in quiz mode yet (no `next_question`), the app picks one locally ([startGyan]).
-  Future<bool> nextQuestion() => startGyan();
-
-  /// "उत्तर और प्रमाण देखें": the answer and the granths that hold its pramans.
-  Future<void> revealGyan() async {
-    final g = gyan;
-    if (g == null) return;
-    gyan = null;
-    final c = await _conv(g.convId);
-    if (c == null) {
-      notifyListeners();
-      return;
-    }
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final tail = g.cited.isEmpty ? '\n\n_इस उत्तर का प्रमाण अभी ऐप में नहीं मिला।_' : '';
-    c.messages.add(ChatMsg(role: 'assistant', text: '${g.answer}$tail', cited: g.cited, at: now));
-    c.updated = now;
-    if (identical(c, current)) tick++;
-    notifyListeners();
-    await _persist(c);
-  }
+  /// "नया प्रश्न": the worker returned no `next_question` (generation failed / old worker):
+  /// resend with the mode set.
+  Future<bool> nextQuestion() => send(kGyanStart);
 }
