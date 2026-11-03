@@ -106,6 +106,45 @@ jobs:
             || { echo "::error::AAB certificate SHA-256 mismatch"; exit 1; }
           echo "AAB certificate SHA-256 matches"
 
+      - name: Play Console checks on the AAB
+        if: env.DO_SIGN == 'true'
+        run: |
+          set -euo pipefail
+          AAB=dist/granth.aab
+          fail(){ echo "::error::$1"; exit 1; }
+          # 1) Signed with the Satlok key
+          jarsigner -verify "$AAB" | grep -q "jar verified" || fail "AAB jarsigner -verify failed"
+          echo "jarsigner: jar verified"
+          keytool -printcert -jarfile "$AAB" | tr -d ':' | tr 'A-F' 'a-f' | grep -q "sha256 $EXPECTED_SHA256" \
+            || fail "AAB certificate SHA-256 mismatch"
+          echo "AAB cert SHA-256 matches $EXPECTED_SHA256"
+          # Merged manifest via bundletool
+          curl -sSfL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle "$AAB" > "$RUNNER_TEMP/manifest.xml"
+          M="$RUNNER_TEMP/manifest.xml"
+          tsdk=$(grep -oP 'android:targetSdkVersion="\K[0-9]+' "$M" | head -1)
+          vc=$(grep -oP 'android:versionCode="\K[0-9]+' "$M" | head -1)
+          vn=$(grep -oP 'android:versionName="\K[^"]+' "$M" | head -1)
+          echo "targetSdk=$tsdk versionCode=$vc versionName=$vn"
+          [ "${tsdk:-0}" -ge 35 ] || fail "targetSdk $tsdk < 35"
+          [ "$vc" = "1" ] || fail "versionCode $vc != 1"
+          [ "$vn" = "1.0.0" ] || fail "versionName $vn != 1.0.0"
+          if grep -E 'uses-permission[^>]*(AD_ID|ACCESS_ADSERVICES_)' "$M"; then fail "AD_ID / ADSERVICES permission in merged manifest"; fi
+          echo "no AD_ID / ACCESS_ADSERVICES_* permissions"
+          if grep -q 'android:debuggable="true"' "$M"; then fail "debuggable=true in manifest"; fi
+          echo "not debuggable"
+          # 16 KB page alignment of every 64-bit native library (Play requirement) (all LOAD segments p_align >= 0x4000)
+          rm -rf "$RUNNER_TEMP/aablib"; mkdir -p "$RUNNER_TEMP/aablib"
+          unzip -q "$AAB" 'base/lib/*' -d "$RUNNER_TEMP/aablib" || true
+          n=0
+          while IFS= read -r so; do
+            n=$((n+1))
+            bad=$(readelf -lW "$so" | awk '$1=="LOAD"{a=strtonum($NF); if (a<16384) print $NF}')
+            [ -z "$bad" ] || fail "$(basename "$so") not 16KB aligned ($bad)"
+          done < <(find "$RUNNER_TEMP/aablib" -name '*.so' \( -path '*/arm64-v8a/*' -o -path '*/x86_64/*' \))
+          [ "$n" -gt 0 ] || fail "no native libraries found in AAB"
+          echo "all $n native libraries are 16KB page aligned"
+
       - uses: actions/upload-artifact@v4
         if: env.DO_SIGN == 'true'
         with:
