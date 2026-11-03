@@ -50,8 +50,25 @@ void main() {
     expect(s.since, '2026-10-30');
   });
 
-  testWidgets('Login page: shows on first launch, बाद में skips and is remembered', (t) async {
+  testWidgets('T184 §21: login is compulsory by default — no बाद में, and an earlier skip still shows it', (t) async {
     LoginGate.enabled = true;
+    LoginGate.markSeen(); // skipped before this update
+    await t.pumpWidget(const GranthApp(splash: false, links: false));
+    await settle(t);
+    expect(find.byKey(const ValueKey('login-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('login-skip')), findsNothing);
+    expect(find.text('बाद में'), findsNothing);
+    await FirebaseBridge.I.debugSetAccount(const AccountInfo(email: 'a@gmail.com', name: 'A'));
+    LoginGate.acceptTerms(1);
+    await settle(t);
+    expect(find.byKey(const ValueKey('login-page')), findsNothing);
+    await FirebaseBridge.I.debugSetAccount(null);
+  });
+
+  testWidgets('Login page: ui.login_required:false → बाद में skips and is remembered', (t) async {
+    LoginGate.enabled = true;
+    RemoteConfig.I.uiLoginRequired = false;
+    addTearDown(() => RemoteConfig.I.uiLoginRequired = true);
     await t.pumpWidget(const GranthApp(splash: false, links: false));
     await settle(t);
     expect(find.byKey(const ValueKey('login-page')), findsOneWidget);

@@ -1,5 +1,6 @@
 /// Round 15: the first-launch login page. Shown once before the dashboard to anyone not signed
-/// in; "बाद में" skips it for good (the app works fully offline and without login). Back here is
+/// in. T184/§21: login is compulsory (also for users who skipped before) unless the admin sets
+/// `ui.login_required:false`; only then "बाद में" appears and skips it. Back here is
 /// Back on the app's first screen, so it leaves the app.
 library;
 
@@ -25,6 +26,9 @@ class LoginGate extends StatefulWidget {
   static bool enabled = true;
 
   static bool get seen => Store.I.getString(Store.kLoginSeen) == '1';
+
+  /// §21: `ui.login_required` true or missing → compulsory.
+  static bool get required => RemoteConfig.I.uiLoginRequired;
   static void markSeen() => Store.I.setString(Store.kLoginSeen, '1');
 
   /// Round-3: the terms version accepted on this device (0 = never).
@@ -40,7 +44,8 @@ class LoginGate extends StatefulWidget {
 }
 
 class _LoginGateState extends State<LoginGate> {
-  late bool _show = LoginGate.enabled && !LoginGate.seen && !FirebaseBridge.I.signedIn;
+  bool _skipped = false;
+  bool get _show => LoginGate.enabled && !FirebaseBridge.I.signedIn && (LoginGate.required || (!LoginGate.seen && !_skipped));
 
   @override
   void initState() {
@@ -72,14 +77,14 @@ class _LoginGateState extends State<LoginGate> {
 
   void _done() {
     LoginGate.markSeen();
-    if (mounted) setState(() => _show = false);
+    if (mounted) setState(() => _skipped = true);
   }
 
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
     duration: const Duration(milliseconds: 320),
     child: _show
-        ? LoginPage(key: const ValueKey('login-page'), onSkip: _done)
+        ? LoginPage(key: const ValueKey('login-page'), onSkip: LoginGate.required ? null : _done)
         : LoginGate.needsTerms
         ? TermsPage(
             key: const ValueKey('terms-page'),
@@ -132,7 +137,7 @@ class GoogleSignInButton extends StatelessWidget {
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key, required this.onSkip});
-  final VoidCallback onSkip;
+  final VoidCallback? onSkip;
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -196,24 +201,35 @@ class LoginPage extends StatelessWidget {
                   if (FirebaseBridge.I.busy && FirebaseBridge.I.stage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Text(FirebaseBridge.I.stage!, key: const ValueKey('login-stage'), textAlign: TextAlign.center, style: GText.sans(size: 13.5, color: GColors.brown)),
+                      child: Text(
+                        FirebaseBridge.I.stage!,
+                        key: const ValueKey('login-stage'),
+                        textAlign: TextAlign.center,
+                        style: GText.sans(size: 13.5, color: GColors.brown),
+                      ),
                     ),
                   if (!FirebaseBridge.I.busy && FirebaseBridge.I.error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: SelectableText(FirebaseBridge.I.error!, key: const ValueKey('login-error'), textAlign: TextAlign.center, style: GText.sans(size: 13.5, color: const Color(0xFFB3261E))),
-                    ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: TextButton(
-                      key: const ValueKey('login-skip'),
-                      onPressed: onSkip,
-                      child: Text(
-                        'बाद में',
-                        style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon),
+                      child: SelectableText(
+                        FirebaseBridge.I.error!,
+                        key: const ValueKey('login-error'),
+                        textAlign: TextAlign.center,
+                        style: GText.sans(size: 13.5, color: const Color(0xFFB3261E)),
                       ),
                     ),
-                  ),
+                  const SizedBox(height: 10),
+                  if (onSkip != null)
+                    Center(
+                      child: TextButton(
+                        key: const ValueKey('login-skip'),
+                        onPressed: onSkip,
+                        child: Text(
+                          'बाद में',
+                          style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon),
+                        ),
+                      ),
+                    ),
                   const Spacer(),
                 ],
               ),
@@ -264,9 +280,17 @@ class TermsPage extends StatelessWidget {
                     children: [
                       const Center(child: LogoIcon(size: 72)),
                       const SizedBox(height: 18),
-                      Text('नियम और शर्तें', textAlign: TextAlign.center, style: GText.display(size: 28, color: GColors.maroon)),
+                      Text(
+                        'नियम और शर्तें',
+                        textAlign: TextAlign.center,
+                        style: GText.display(size: 28, color: GColors.maroon),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Terms & Conditions', textAlign: TextAlign.center, style: GText.sans(size: 13, color: GColors.muted)),
+                      Text(
+                        'Terms & Conditions',
+                        textAlign: TextAlign.center,
+                        style: GText.sans(size: 13, color: GColors.muted),
+                      ),
                       const SizedBox(height: 20),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -278,7 +302,10 @@ class TermsPage extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('आगे बढ़ने से पहले संक्षेप में:', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.brown)),
+                            Text(
+                              'आगे बढ़ने से पहले संक्षेप में:',
+                              style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.brown),
+                            ),
                             const SizedBox(height: 10),
                             for (final p in points)
                               Padding(
@@ -287,7 +314,9 @@ class TermsPage extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text('•  ', style: GText.sans(size: 14, color: GColors.maroon)),
-                                    Expanded(child: Text(p, style: GText.sans(size: 14, color: GColors.text, height: 1.45))),
+                                    Expanded(
+                                      child: Text(p, style: GText.sans(size: 14, color: GColors.text, height: 1.45)),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -301,12 +330,18 @@ class TermsPage extends StatelessWidget {
                           TextButton(
                             key: const ValueKey('terms-link'),
                             onPressed: () => FileActions.openUrl(terms.url).catchError((Object _) {}),
-                            child: Text('पूरे नियम पढ़ें', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline)),
+                            child: Text(
+                              'पूरे नियम पढ़ें',
+                              style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline),
+                            ),
                           ),
                           TextButton(
                             key: const ValueKey('privacy-link'),
                             onPressed: () => FileActions.openUrl(terms.privacyUrl).catchError((Object _) {}),
-                            child: Text('गोपनीयता नीति', style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline)),
+                            child: Text(
+                              'गोपनीयता नीति',
+                              style: GText.sans(size: 14.5, weight: FontWeight.w700, color: GColors.maroon).copyWith(decoration: TextDecoration.underline),
+                            ),
                           ),
                         ],
                       ),
@@ -334,13 +369,19 @@ class TermsPage extends StatelessWidget {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
                       ),
                       onPressed: onAccept,
-                      child: Text('स्वीकार करें', style: GText.sans(size: 16, weight: FontWeight.w700, color: GColors.paper)),
+                      child: Text(
+                        'स्वीकार करें',
+                        style: GText.sans(size: 16, weight: FontWeight.w700, color: GColors.paper),
+                      ),
                     ),
                     const SizedBox(height: 4),
                     TextButton(
                       key: const ValueKey('terms-decline'),
                       onPressed: onDecline,
-                      child: Text('अस्वीकार (लॉगआउट करें)', style: GText.sans(size: 14, weight: FontWeight.w600, color: GColors.muted)),
+                      child: Text(
+                        'अस्वीकार (लॉगआउट करें)',
+                        style: GText.sans(size: 14, weight: FontWeight.w600, color: GColors.muted),
+                      ),
                     ),
                   ],
                 ),

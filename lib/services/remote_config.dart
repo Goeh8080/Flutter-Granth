@@ -73,6 +73,7 @@ class ParsedConfig {
     this.uiGridForce = const {},
     this.uiTaskbar = TaskbarRule.none,
     this.uiTerms = TermsInfo.fallback,
+    this.uiLoginRequired = true,
     this.trendingTopics = const [],
     this.dailyPraman,
   });
@@ -106,6 +107,9 @@ class ParsedConfig {
 
   /// `ui.terms {url, version}` (round-3; see [parseTerms]).
   final TermsInfo uiTerms;
+
+  /// `ui.login_required` (§21): Google login is compulsory unless the admin sets exactly `false`.
+  final bool uiLoginRequired;
 
   /// `trending.topic_ids` (round 14, optional): topic ids to show as "चर्चित विषय"; empty = hidden.
   final List<String> trendingTopics;
@@ -385,6 +389,7 @@ ParsedConfig? parseConfig(String text, {int cachedVersion = 0, int appBuild = kB
       uiGridForce: parseGridForce(_map(j['ui'])),
       uiTaskbar: parseTaskbar(_map(j['ui'])),
       uiTerms: parseTerms(_map(j['ui'])),
+      uiLoginRequired: _map(j['ui'])?['login_required'] != false,
       trendingTopics: _parseTrending(_map(j['trending'])),
       dailyPraman: _parseDaily(_map(j['daily_praman'])),
     );
@@ -548,6 +553,7 @@ class RemoteConfig extends ChangeNotifier {
 
   /// `ui.terms` (see [parseTerms]).
   TermsInfo uiTerms = TermsInfo.fallback;
+  bool uiLoginRequired = true;
 
   /// The admin's grid for [page]: `ui.grid_pages[page]`, else `ui.grid`, else null (local default).
   int? gridFor(String page) => uiGridPages[page] ?? uiGrid;
@@ -663,6 +669,7 @@ class RemoteConfig extends ChangeNotifier {
     final gridChanged = uiGrid != p.uiGrid || !mapEquals(uiGridPages, p.uiGridPages) || !mapEquals(uiGridForce, p.uiGridForce) || uiTaskbar != p.uiTaskbar;
     uiTaskbar = p.uiTaskbar;
     uiTerms = p.uiTerms;
+    uiLoginRequired = p.uiLoginRequired;
     uiGrid = p.uiGrid;
     uiGridPages = p.uiGridPages;
     uiGridForce = p.uiGridForce;
@@ -701,6 +708,7 @@ class RemoteConfig extends ChangeNotifier {
     uiGridForce = const {};
     uiTaskbar = TaskbarRule.none;
     uiTerms = TermsInfo.fallback;
+    uiLoginRequired = true;
     trendingTopics = const [];
     dailyPraman = null;
     lastResult = 'none';
