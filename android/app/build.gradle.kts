@@ -7,13 +7,16 @@ plugins {
 }
 
 // Release signing: android/key.properties (gitignored, never committed) points at the
-// keystore. Without it (CI, a fresh clone) the release build falls back to the debug key,
-// so every build still works.
+// keystore. A release build without it FAILS (Play rejects debug-signed bundles); debug
+// builds don't need it.
 val keyProps = Properties().apply {
     val f = rootProject.file("key.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val hasReleaseKey = keyProps.getProperty("storeFile")?.let { file(it).exists() } == true
+if (!hasReleaseKey && gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }) {
+    throw GradleException("key.properties missing: release must be signed with the upload key (no debug-key fallback)")
+}
 
 android {
     namespace = "com.wnm.granthprabandhan"
@@ -31,7 +34,7 @@ android {
         applicationId = "com.wnm.granthprabandhan"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         targetSdk = maxOf(flutter.targetSdkVersion, 36)
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -57,7 +60,8 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            // Never the debug key: without key.properties the release build already failed above.
+            if (hasReleaseKey) signingConfig = signingConfigs.getByName("release")
             // Production: R8 code shrinking + resource shrinking, never debuggable.
             isMinifyEnabled = true
             isShrinkResources = true
